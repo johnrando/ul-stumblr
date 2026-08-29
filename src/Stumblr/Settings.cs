@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace Stumblr
 {
@@ -54,8 +55,11 @@ namespace Stumblr
 		/// <summary>Whether a trip plays the player's own small-pain grunt.</summary>
 		internal static bool PlaySound = true;
 
-		/// <summary>Whether a trip jolts the camera.</summary>
-		internal static bool ShakeCamera = true;
+		/// <summary>Whether a trip tips the horizon. See <see cref="PlayerTrip"/>.</summary>
+		internal static bool RollCamera = true;
+
+		/// <summary>Whether a trip kicks the held item and hands.</summary>
+		internal static bool JoltWeapon = true;
 
 		/// <summary>
 		/// Of the zombies that trip, the percentage caught on the near side - the jump is cancelled
@@ -75,12 +79,20 @@ namespace Stumblr
 		internal static float ZombieStunSeconds = 1f;
 
 		/// <summary>
-		/// Camera shake strength and duration. Vanilla's own EnumCameraShake sizes are 5 for Tiny,
-		/// 10 for Small and 20 for Big; a trip is a Tiny.
+		/// How hard the horizon tips, as a one-shot roll force with a randomised sign. Vanilla's own
+		/// DoBomb - the explosion knock - uses 1 to 2, so a trip sits just under an explosion.
 		/// </summary>
-		internal static float ShakeStrength = 5f;
+		internal static float RollForce = 0.8f;
 
-		internal static float ShakeSeconds = 0.3f;
+		/// <summary>
+		/// The kick given to the held item, on the same springs a gunshot's recoil drives. For
+		/// scale, a gunshot is a positional (0, 0, -0.035) and a rotational (-10, 0, 0) degrees;
+		/// these are a little larger and sideways-biased so a trip does not read as a shot. The x
+		/// of the position and the y and z of the rotation take a randomised sign.
+		/// </summary>
+		internal static Vector3 JoltPosition = new Vector3(0.02f, -0.05f, -0.03f);
+
+		internal static Vector3 JoltRotation = new Vector3(-12f, 6f, 10f);
 
 		/// <summary>
 		/// Minimum seconds between two player trips. Undead Legacy adds a double jump, so one fence

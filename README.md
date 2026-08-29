@@ -32,6 +32,7 @@ Stumblr is now ON
   sb ground {n}     : only within 3 blocks of ground level
   sb hurt           : [ >on< | off ]
   sb shake          : [ >on< | off ]
+  sb jolt           : [ >on< | off ]
   sb catch {pct}    : 50% caught before the jump, rest on landing
   sb zombie         : [ off | >stumble< | ragdoll ]
   sb blocks         : 11 patterns, 12 of 40 blocks seen so far
@@ -45,13 +46,19 @@ zeroes those counters.
 
 ## What a trip does
 
-**The player gets a grunt and a jolt of the view, and nothing else** — no damage, no stamina cost,
-no buff, and no change to speed, control or aim — and always clears the obstacle. A trip happens on
-the landing; being left on the wrong side of a fence with a horde behind you is the most lethal thing
-this mod could do. The grunt is your own character's `SoundHurtSmall`, which unlike Door Slammer's
-and Fletch Wounds' sounds is audible to zombies, exactly as taking a hit is. Your odds fall from 1%
-to 0.1% as **Athletics** levels — a UL perk, falling back to vanilla's `perkParkour` without it, and
-unscaled with neither. `sb info` shows which it found.
+**The player gets feedback and nothing else** — no damage, no stamina cost, no buff, and no change
+to speed, control or aim — and always clears the obstacle. A trip happens on the landing; being left
+on the wrong side of a fence with a horde behind you is the most lethal thing this mod could do.
+
+Three channels, because they fail differently and any one alone is easy to miss while sprinting: a
+grunt, a **lurch** as the horizon tips and rights itself, and a **jolt** to your held item and hands.
+The lurch is roll only, so it tips the view without moving where you are aiming; the jolt runs on the
+spring gun recoil uses and touches nothing about the camera, so it still reads if view effects are
+turned down. The grunt is your own character's `SoundHurtSmall`, which unlike Door Slammer's and
+Fletch Wounds' sounds is audible to zombies, exactly as taking a hit is.
+
+Your odds fall from 1% to 0.1% as **Athletics** levels — a UL perk, falling back to vanilla's
+`perkParkour` without it, and unscaled with neither. `sb info` shows which it found.
 
 **A zombie goes down**, half the time caught before it jumps so it never leaves the ground, half the
 time cleared over and taken out on the landing — `sb catch` sets the split. Either way it plays one
@@ -79,7 +86,8 @@ All tunable in `Settings.cs`, and all settable in-game:
 | caught before the jump | 50% of trips |
 | ground band | 3 blocks |
 | trip grunt | on |
-| camera shake | on, vanilla's "Tiny" for 0.3 s |
+| camera lurch | on, roll force 0.8 |
+| weapon jolt | on |
 | zombie reaction | stumble |
 | zombie stun | 1 s |
 

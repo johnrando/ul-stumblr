@@ -48,8 +48,13 @@ namespace Stumblr
 				return;
 
 			case "shake":
-				Settings.ShakeCamera = !Settings.ShakeCamera;
-				Output(PlayerTrip.DescribeShake());
+				Settings.RollCamera = !Settings.RollCamera;
+				Output(PlayerTrip.DescribeRoll());
+				return;
+
+			case "jolt":
+				Settings.JoltWeapon = !Settings.JoltWeapon;
+				Output(PlayerTrip.DescribeJolt());
 				return;
 
 			case "catch":
@@ -84,7 +89,7 @@ namespace Stumblr
 
 			default:
 				Output("Unknown option '" + _params[0]
-					+ "'. Try: sb [chance|floor|ground|hurt|shake|catch|zombie|blocks|add|drop|info|reset]");
+					+ "'. Try: sb [chance|floor|ground|hurt|shake|jolt|catch|zombie|blocks|add|drop|info|reset]");
 				return;
 			}
 		}
@@ -100,8 +105,10 @@ namespace Stumblr
 			Line("sb floor {p}", FloorLine());
 			Line("sb ground {n}", GroundLevel.Status());
 			Line("sb hurt", Choices(Mark("on", Settings.PlaySound), Mark("off", !Settings.PlaySound)));
-			Line("sb shake", Choices(Mark("on", Settings.ShakeCamera),
-				Mark("off", !Settings.ShakeCamera)));
+			Line("sb shake", Choices(Mark("on", Settings.RollCamera),
+				Mark("off", !Settings.RollCamera)));
+			Line("sb jolt", Choices(Mark("on", Settings.JoltWeapon),
+				Mark("off", !Settings.JoltWeapon)));
 			Line("sb catch {pct}", CatchLine());
 			Line("sb zombie", ZombieChoices());
 			Line("sb blocks", TripBlocks.Status());
@@ -373,8 +380,8 @@ namespace Stumblr
 
 		public override string getHelp()
 		{
-			return "Usage: sb [chance {p} {z}|floor {p}|ground {n}|hurt|shake|catch {pct}|zombie"
-				+ "|blocks|add {pattern}|drop {pattern}|info|reset]"
+			return "Usage: sb [chance {p} {z}|floor {p}|ground {n}|hurt|shake|jolt|catch {pct}"
+				+ "|zombie|blocks|add {pattern}|drop {pattern}|info|reset]"
 				+ "\r\n\r\nJumping a fence, a railing or a guardrail carries a small chance of "
 				+ "catching a foot on it. A zombie goes down in one of the game's own stumble "
 				+ "animations. The player always clears the obstacle and only lands badly - a grunt "
@@ -397,8 +404,12 @@ namespace Stumblr
 				+ "'sb hurt' toggles the grunt, which is your own character's SoundHurtSmall - so "
 				+ "nothing is bundled and the voice always matches the character. Unlike Door Slammer "
 				+ "and Fletch Wounds this sound is audible to zombies, exactly as taking a hit is."
-				+ "\r\n\r\n'sb shake' toggles the camera jolt. It is vanilla's own Tiny shake and it "
-				+ "does not move your aim.\r\n\r\n'sb catch {pct}' splits zombie trips between the "
+				+ "\r\n\r\n'sb shake' toggles the lurch: the horizon tips and rights itself, on the "
+				+ "same roll spring an explosion uses. It is roll only, so it does not move your "
+				+ "aim.\r\n\r\n'sb jolt' toggles a kick to your held item and hands, on the spring "
+				+ "gun recoil drives. It exists because the lurch and the jolt fail differently - "
+				+ "nothing that affects the camera can touch the jolt - and either alone is easy to "
+				+ "miss while sprinting.\r\n\r\n'sb catch {pct}' splits zombie trips between the "
 				+ "two sides of the obstacle: caught before the jump, so they never leave the "
 				+ "ground, or allowed over and taken down on the landing. 50 by default, an even "
 				+ "mix - all-near looks like an invisible wall, all-far like the fence never "
