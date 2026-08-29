@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xml>
+	<Name value="Stumblr" />
+	<DisplayName value="Stumblr" />
+	<Description value="Jumping a fence, railing or guardrail carries a tiny chance of tripping. A zombie catches a foot and goes down in one of the game's own stumble animations; the player always gets over, and only lands badly - a grunt and a jolt of the view, nothing else. Athletics reduces the player's odds. Compatible with Undead Legacy." />
+	<Author value="John Rando" />
+	<Version value="0.0.0.1" />
+	<Website value="" />
+</xml>
