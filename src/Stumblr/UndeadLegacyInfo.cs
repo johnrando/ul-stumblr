@@ -18,7 +18,7 @@ namespace Stumblr
 	///
 	/// Of UL's version markers only the ones on <c>H_UndeadLegacy</c> are trustworthy: the
 	/// <c>[BepInPlugin]</c> attribute and the <c>pluginVersion</c> literal. UL's assembly version is
-	/// hardcoded 1.0.0.0 and its ModInfo.xml lags reality - it reads 2.7.01 on a 2.7.18 install.
+	/// hardcoded 1.0.0.0 and its ModInfo.xml lags reality - it reads 2.7.01 on a 2.7.19 install.
 	/// </summary>
 	internal static class UndeadLegacyInfo
 	{

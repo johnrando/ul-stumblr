@@ -6,7 +6,8 @@ on it — **1%** for the player, **2%** for a zombie.
 A chest-high railing is currently not an obstacle. Everything clears it, every time, and a horde
 pours over one in a tidy line. Now it occasionally doesn't.
 
-**Undead Legacy is not required** and nothing of UL's is modified. Tested against **UL 2.7.18**.
+**Undead Legacy is not required** and nothing of UL's is modified. Tested against
+**UL 2.7.15 - 2.7.19**.
 
 ## Installing
 
