@@ -32,6 +32,12 @@ namespace Stumblr
 
 		internal static int ZombieTrips;
 
+		/// <summary>Of the trips, the ones caught before the jump.</summary>
+		internal static int ZombieNearSide;
+
+		/// <summary>Of the trips, the ones that cleared it and went down on landing.</summary>
+		internal static int ZombieFarSide;
+
 		internal static int ZombieRagdolls;
 
 		internal static void Reset()
@@ -45,6 +51,8 @@ namespace Stumblr
 			ZombieNearGround = 0;
 			ZombieOverTrippable = 0;
 			ZombieTrips = 0;
+			ZombieNearSide = 0;
+			ZombieFarSide = 0;
 			ZombieRagdolls = 0;
 		}
 	}

@@ -90,16 +90,23 @@ namespace Stumblr
 		/// <summary>
 		/// Half the player pair: records where a jump began. Without it the landing hook has nothing
 		/// to measure and no player ever trips.
+		///
+		/// EntityAlive.StartJump, and not EntityPlayer.StartJumpMotion, which was the first attempt
+		/// and never fired. The local player's jump is driven by UFPS, not by EntityAlive's own
+		/// JumpState machine: EntityPlayerLocal.OnUpdateLive sets Jumping = true and later calls
+		/// EndJump() directly, so UpdateJump - the only caller of StartJumpMotion - never runs for
+		/// the player. The Jumping setter does call StartJump, so this fires for both the player and
+		/// zombies; RecordTakeOff filters to the local player itself.
 		/// </summary>
 		private static void ApplyPlayerJumpHook(Harmony _harmony)
 		{
-			MethodInfo target = AccessTools.DeclaredMethod(typeof(EntityPlayer), "StartJumpMotion");
+			MethodInfo target = AccessTools.DeclaredMethod(typeof(EntityAlive), "StartJump");
 			if (target == null)
 			{
-				PlayerJumpHookStatus = "NOT APPLIED - EntityPlayer.StartJumpMotion not found";
-				Log.Error(LogPrefix + "Player jump hook NOT applied: EntityPlayer.StartJumpMotion "
-					+ "could not be found, so the landing hook has no take-off to measure from and "
-					+ "the player will never trip.");
+				PlayerJumpHookStatus = "NOT APPLIED - EntityAlive.StartJump not found";
+				Log.Error(LogPrefix + "Player jump hook NOT applied: EntityAlive.StartJump could not "
+					+ "be found, so the landing hook has no take-off to measure from and the player "
+					+ "will never trip.");
 				return;
 			}
 
@@ -107,7 +114,7 @@ namespace Stumblr
 				AccessTools.DeclaredMethod(typeof(PlayerJumpTrigger),
 					nameof(PlayerJumpTrigger.RecordTakeOff))));
 
-			PlayerJumpHookStatus = "applied - postfix on EntityPlayer.StartJumpMotion";
+			PlayerJumpHookStatus = "applied - postfix on EntityAlive.StartJump";
 			Log.Out(LogPrefix + "Player jump hook applied: take-off positions are now recorded.");
 		}
 

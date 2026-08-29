@@ -52,6 +52,10 @@ namespace Stumblr
 				Output(PlayerTrip.DescribeShake());
 				return;
 
+			case "catch":
+				SetCatch(_params);
+				return;
+
 			case "zombie":
 				ZombieTrip.Cycle();
 				Output(ZombieTrip.Describe());
@@ -80,7 +84,7 @@ namespace Stumblr
 
 			default:
 				Output("Unknown option '" + _params[0]
-					+ "'. Try: sb [chance|floor|ground|hurt|shake|zombie|blocks|add|drop|info|reset]");
+					+ "'. Try: sb [chance|floor|ground|hurt|shake|catch|zombie|blocks|add|drop|info|reset]");
 				return;
 			}
 		}
@@ -98,6 +102,7 @@ namespace Stumblr
 			Line("sb hurt", Choices(Mark("on", Settings.PlaySound), Mark("off", !Settings.PlaySound)));
 			Line("sb shake", Choices(Mark("on", Settings.ShakeCamera),
 				Mark("off", !Settings.ShakeCamera)));
+			Line("sb catch {pct}", CatchLine());
 			Line("sb zombie", ZombieChoices());
 			Line("sb blocks", TripBlocks.Status());
 		}
@@ -123,7 +128,9 @@ namespace Stumblr
 				+ Counters.PlayerTrips + " tripped");
 			Line("zombies", Counters.ZombieJumps + " jumps, " + Counters.ZombieNearGround
 				+ " near ground, " + Counters.ZombieOverTrippable + " over a fence, "
-				+ Counters.ZombieTrips + " caught (" + Counters.ZombieRagdolls + " ragdolled)");
+				+ Counters.ZombieTrips + " tripped (" + Counters.ZombieNearSide + " caught, "
+				+ Counters.ZombieFarSide + " on landing, " + Counters.ZombieRagdolls
+				+ " ragdolled)");
 
 			if (Counters.JumpsSeen == 0)
 			{
@@ -221,6 +228,23 @@ namespace Stumblr
 
 			Settings.GroundBand = band;
 			Output("Ground band: " + GroundLevel.Status());
+		}
+
+		private static void SetCatch(List<string> _params)
+		{
+			if (_params.Count != 2)
+			{
+				Output("Usage: sb catch {pct} - currently: " + CatchLine());
+				return;
+			}
+
+			if (!TryPercent(_params[1], "catch share", out float share))
+			{
+				return;
+			}
+
+			Settings.ZombieCatchPercent = share;
+			Output("Catch share: " + CatchLine());
 		}
 
 		private static void AddPattern(List<string> _params)
@@ -321,6 +345,12 @@ namespace Stumblr
 				+ TripChance.Percent(Settings.ZombieChance) + " zombie";
 		}
 
+		private static string CatchLine()
+		{
+			return TripChance.Percent(Settings.ZombieCatchPercent)
+				+ " of zombie trips caught before the jump, rest on landing";
+		}
+
 		private static string FloorLine()
 		{
 			return "Athletics cuts the player to " + TripChance.Percent(Settings.PlayerChanceFloor);
@@ -343,8 +373,8 @@ namespace Stumblr
 
 		public override string getHelp()
 		{
-			return "Usage: sb [chance {p} {z}|floor {p}|ground {n}|hurt|shake|zombie|blocks"
-				+ "|add {pattern}|drop {pattern}|info|reset]"
+			return "Usage: sb [chance {p} {z}|floor {p}|ground {n}|hurt|shake|catch {pct}|zombie"
+				+ "|blocks|add {pattern}|drop {pattern}|info|reset]"
 				+ "\r\n\r\nJumping a fence, a railing or a guardrail carries a small chance of "
 				+ "catching a foot on it. A zombie goes down in one of the game's own stumble "
 				+ "animations. The player always clears the obstacle and only lands badly - a grunt "
@@ -368,7 +398,11 @@ namespace Stumblr
 				+ "nothing is bundled and the voice always matches the character. Unlike Door Slammer "
 				+ "and Fletch Wounds this sound is audible to zombies, exactly as taking a hit is."
 				+ "\r\n\r\n'sb shake' toggles the camera jolt. It is vanilla's own Tiny shake and it "
-				+ "does not move your aim.\r\n\r\n'sb zombie' cycles what a caught zombie does: off, "
+				+ "does not move your aim.\r\n\r\n'sb catch {pct}' splits zombie trips between the "
+				+ "two sides of the obstacle: caught before the jump, so they never leave the "
+				+ "ground, or allowed over and taken down on the landing. 50 by default, an even "
+				+ "mix - all-near looks like an invisible wall, all-far like the fence never "
+				+ "troubled them.\r\n\r\n'sb zombie' cycles what a tripping zombie does: off, "
 				+ "stumble (it staggers and recovers) or ragdoll (it goes down properly). Both are "
 				+ "the game's own reactions, and neither deals damage nor triggers rage.\r\n\r\n"
 				+ "'sb blocks' prints the block-name substrings that count as trippable, and 'sb add' "

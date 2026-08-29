@@ -29,8 +29,11 @@ namespace Stumblr
 		/// <summary>How far along the jump line to look, in voxels.</summary>
 		private const int MaxSteps = 8;
 
-		/// <summary>Postfix on <c>EntityPlayer.StartJumpMotion</c>.</summary>
-		internal static void RecordTakeOff(EntityPlayer __instance)
+		/// <summary>
+		/// Postfix on <c>EntityAlive.StartJump</c>, which the Jumping setter calls. Fires for every
+		/// entity, so the local-player check is the first thing it does.
+		/// </summary>
+		internal static void RecordTakeOff(EntityAlive __instance)
 		{
 			if (!(__instance is EntityPlayerLocal))
 			{
@@ -52,8 +55,14 @@ namespace Stumblr
 				return;
 			}
 
+			// Zombies land here too - EntityHuman.EndJump calls base - and a zombie marked at
+			// take-off for a far-side trip goes down now, having cleared the fence.
 			if (!(__instance is EntityPlayerLocal player))
 			{
+				if (ZombieJumpTrigger.ConsumeFarSide(__instance.entityId))
+				{
+					ZombieTrip.Apply(__instance);
+				}
 				return;
 			}
 

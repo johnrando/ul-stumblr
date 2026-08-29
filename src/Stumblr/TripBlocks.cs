@@ -8,9 +8,15 @@ namespace Stumblr
 	/// This is name matching, and it is name matching because there is nothing better to match on.
 	/// Vanilla's blocks.xml has no Tags value containing "fence" or "railing" anywhere; the only
 	/// fence marker in the whole config is FilterTags="...,SC_fences", which is a creative-menu
-	/// filter present on a handful of blocks and absent from every chainlink piece. So the block's
-	/// own name is the signal, matched as a case-insensitive substring so that one pattern covers
-	/// the sixty-odd chainlink variants and picks up modded fences named the obvious way.
+	/// filter present on a handful of blocks and absent from every chainlink piece. So the name is
+	/// the signal, matched as a case-insensitive substring so that one pattern covers the sixty-odd
+	/// chainlink variants and picks up modded fences named the obvious way.
+	///
+	/// Both the block's name and its shape's, because for a large family of blocks the fence-ness
+	/// lives entirely in the shape. A picket fence built out of the shape menu is a woodShapes or
+	/// concreteShapes block - the name is the material - carrying a shape called fencePicket or
+	/// fenceCentered. Matching only the block name misses every one of those, which is most of the
+	/// fences a player actually builds.
 	///
 	/// The default patterns match 169 of vanilla's 6299 blocks and all 28 of Undead Legacy's own
 	/// railings and fences. Exclusions are checked first and exist because the include set is
@@ -37,33 +43,43 @@ namespace Stumblr
 				return cached;
 			}
 
-			bool trippable = Classify(_block.blockName);
+			string blockName = _block.blockName;
+			string shapeName = ShapeName(_block);
+
+			// An exclusion on either name vetoes, so a fence door whose shape happens to match is
+			// still a door. Only then does either name get to say yes.
+			bool trippable = !Matches(blockName, Settings.Exclude)
+				&& !Matches(shapeName, Settings.Exclude)
+				&& (Matches(blockName, Settings.Include) || Matches(shapeName, Settings.Include));
+
 			cache[_block.blockID] = trippable;
 			return trippable;
 		}
 
-		private static bool Classify(string _blockName)
+		/// <summary>
+		/// The block's shape name, or null. Block.shape is a plain field, so one block has one
+		/// shape and caching the answer by block id stays valid. GetName is empty on the base
+		/// BlockShape and only meaningful on BlockShapeNew, which is what the shape menu uses.
+		/// </summary>
+		private static string ShapeName(Block _block)
 		{
-			if (string.IsNullOrEmpty(_blockName))
+			return _block.shape == null ? null : _block.shape.GetName();
+		}
+
+		private static bool Matches(string _name, List<string> _patterns)
+		{
+			if (string.IsNullOrEmpty(_name))
 			{
 				return false;
 			}
 
-			// ToLowerInvariant rather than the player's culture: block names are ASCII identifiers,
-			// and a Turkish locale would otherwise stop "railing" matching "Railing".
-			string name = _blockName.ToLowerInvariant();
+			// ToLowerInvariant rather than the player's culture: these are ASCII identifiers, and a
+			// Turkish locale would otherwise stop "railing" matching "Railing".
+			string name = _name.ToLowerInvariant();
 
-			for (int i = 0; i < Settings.Exclude.Count; i++)
+			for (int i = 0; i < _patterns.Count; i++)
 			{
-				if (name.Contains(Settings.Exclude[i]))
-				{
-					return false;
-				}
-			}
-
-			for (int i = 0; i < Settings.Include.Count; i++)
-			{
-				if (name.Contains(Settings.Include[i]))
+				if (name.Contains(_patterns[i]))
 				{
 					return true;
 				}

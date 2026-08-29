@@ -32,8 +32,9 @@ Stumblr is now ON
   sb ground {n}     : only within 3 blocks of ground level
   sb hurt           : [ >on< | off ]
   sb shake          : [ >on< | off ]
+  sb catch {pct}    : 50% caught before the jump, rest on landing
   sb zombie         : [ off | >stumble< | ragdoll ]
-  sb blocks         : 8 patterns, 12 of 40 blocks seen so far
+  sb blocks         : 11 patterns, 12 of 40 blocks seen so far
 ```
 
 `sb blocks` prints the block-name substrings in full; `sb add` and `sb drop` edit them. A setter
@@ -52,16 +53,19 @@ and Fletch Wounds' sounds is audible to zombies, exactly as taking a hit is. You
 to 0.1% as **Athletics** levels — a UL perk, falling back to vanilla's `perkParkour` without it, and
 unscaled with neither. `sb info` shows which it found.
 
-**A zombie goes down.** Its jump is cancelled, so it stays on your side of the fence, and it plays
-one of the game's own reactions: `stumble` staggers it for a second, `ragdoll` knocks it over.
-Neither deals damage, grants XP, sets a revenge target or triggers rage, and no skill scales it.
+**A zombie goes down**, half the time caught before it jumps so it never leaves the ground, half the
+time cleared over and taken out on the landing — `sb catch` sets the split. Either way it plays one
+of the game's own reactions: `stumble` staggers it for a second, `ragdoll` knocks it over. Neither
+deals damage, grants XP, sets a revenge target or triggers rage, and no skill scales it.
 
 **Only near the ground** — within 3 blocks of terrain height, so a yard fence counts and a
 fifth-floor catwalk railing does not. Zombies included, which also stops them tumbling off high
 walkways.
 
-Trippable blocks are matched by name substring, because the game ships no fence or railing tag: 169
-vanilla blocks and all 28 of Undead Legacy's. Another mod's fences may need an `sb add`.
+Trippable blocks are matched by name substring, because the game ships no fence or railing tag. Both
+the block's name and its **shape's** are checked — a picket fence built from the shape menu is a
+`woodShapes` block whose fence-ness lives entirely in the `fencePicket` shape, and matching only the
+block name misses every fence a player actually builds. Anything missed takes an `sb add`.
 
 ## Defaults
 
@@ -72,6 +76,7 @@ All tunable in `Settings.cs`, and all settable in-game:
 | player chance, Athletics 1 | 1% |
 | player chance, Athletics cap | 0.1% |
 | zombie chance | 2% |
+| caught before the jump | 50% of trips |
 | ground band | 3 blocks |
 | trip grunt | on |
 | camera shake | on, vanilla's "Tiny" for 0.3 s |

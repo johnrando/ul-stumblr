@@ -57,7 +57,15 @@ namespace Stumblr
 		/// <summary>Whether a trip jolts the camera.</summary>
 		internal static bool ShakeCamera = true;
 
-		/// <summary>What a caught zombie does. Cycled with <c>sb zombie</c>.</summary>
+		/// <summary>
+		/// Of the zombies that trip, the percentage caught on the near side - the jump is cancelled
+		/// and they never leave the ground. The rest clear the obstacle and go down on the far side
+		/// instead. 50 means an even mix, which reads better than either extreme: all-near looks
+		/// like an invisible wall, all-far like they were never troubled by the fence.
+		/// </summary>
+		internal static float ZombieCatchPercent = 50f;
+
+		/// <summary>What a tripping zombie does. Cycled with <c>sb zombie</c>.</summary>
 		internal static ZombieReaction ZombieMode = ZombieReaction.Stumble;
 
 		/// <summary>
@@ -81,14 +89,16 @@ namespace Stumblr
 		internal static float PlayerCooldownSeconds = 0.5f;
 
 		/// <summary>
-		/// Case-insensitive block-name substrings that count as trippable. Vanilla ships no fence
-		/// or railing tag - see <see cref="TripBlocks"/> - so the name is all there is to go on.
-		/// Editable in-game with <c>sb add</c> / <c>sb drop</c>.
+		/// Case-insensitive substrings that count as trippable, matched against both the block's
+		/// name and its shape's - see <see cref="TripBlocks"/> for why both. Vanilla ships no fence
+		/// or railing tag, so names are all there is to go on. Editable in-game with <c>sb add</c>
+		/// / <c>sb drop</c>.
 		/// </summary>
 		internal static readonly List<string> Include = new List<string>
 		{
-			"fence", "railing", "guardrail", "handrail",
-			"barbedwire", "barbwire", "planthedge", "plantshrub"
+			"fence", "railing", "guardrail", "handrail", "baluster",
+			"barbedwire", "barbwire", "barrier", "pole",
+			"planthedge", "plantshrub"
 		};
 
 		/// <summary>
@@ -97,7 +107,8 @@ namespace Stumblr
 		/// </summary>
 		internal static readonly List<string> Exclude = new List<string>
 		{
-			"fencedoor", "gate", "randomhelper", "varianthelper", "poivariant"
+			"fencedoor", "gate", "randomhelper", "varianthelper", "poivariant",
+			"pendantpole", "polelight"
 		};
 	}
 }

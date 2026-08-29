@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Stumblr
 {
 	/// <summary>
@@ -16,6 +18,25 @@ namespace Stumblr
 	/// </summary>
 	internal static class ZombieJumpTrigger
 	{
+		/// <summary>
+		/// Entities whose jump was allowed to proceed but which are due to go down when they land.
+		/// Keyed on entity id rather than holding the entity, so an unload between take-off and
+		/// landing leaves a stale int rather than a reference to a dead object.
+		/// </summary>
+		private static readonly HashSet<int> pendingFarSide = new HashSet<int>();
+
+		/// <summary>Drop the pending set once it passes this many zombies.</summary>
+		private const int PruneAbove = 64;
+
+		/// <summary>
+		/// Whether this entity was marked for a far-side trip, clearing the mark. Called from the
+		/// landing hook.
+		/// </summary>
+		internal static bool ConsumeFarSide(int _entityId)
+		{
+			return pendingFarSide.Remove(_entityId);
+		}
+
 		internal static bool Prefix(EntityMoveHelper __instance)
 		{
 			if (!Settings.Enabled)
@@ -87,10 +108,31 @@ namespace Stumblr
 			}
 
 			Counters.ZombieTrips++;
+
+			// Near side or far. Catching it cancels the jump outright; the alternative is to let it
+			// go over and take its legs out on the landing, which is the difference between a zombie
+			// that fumbles at the fence and one that clears it and sprawls.
+			if (entity.rand.RandomFloat * 100f >= Settings.ZombieCatchPercent)
+			{
+				// A zombie that unloads or dies mid-jump never reaches the landing hook to have its
+				// mark consumed, so the set would creep upward over a long session. There is no
+				// harm in dropping the lot: the worst case is a handful of airborne zombies landing
+				// on their feet.
+				if (pendingFarSide.Count > PruneAbove)
+				{
+					pendingFarSide.Clear();
+				}
+
+				pendingFarSide.Add(entity.entityId);
+				Counters.ZombieFarSide++;
+				return true;
+			}
+
+			Counters.ZombieNearSide++;
 			ZombieTrip.Apply(entity);
 
 			// Skip the original: the jump never happens, so the zombie is left on this side of the
-			// fence rather than clearing it and stumbling on the far side.
+			// fence.
 			return false;
 		}
 	}
