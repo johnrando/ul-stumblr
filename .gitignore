@@ -8,9 +8,7 @@
 
 !/src/
 !/src/**
-!/dist/
-!/dist/**
 
-# Build output that lives inside src/.
+# Build output that lives inside src/. dist/ is the staged mod folder, local only.
 src/**/bin/
 src/**/obj/

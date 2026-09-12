@@ -13,7 +13,7 @@ mind: the trip chance grows with the weapon skills UL levels by use. Tested agai
 
 ## Installing
 
-Copy `dist/Stumblr/` (checked into this repo, so no build needed) into the game's `Mods/`:
+Build (below), then copy the staged `dist/Stumblr/` into the game's `Mods/`:
 
 ```
 Mods/Stumblr/
@@ -130,7 +130,7 @@ install, against the game's own assemblies.
 dotnet build src/Stumblr/Stumblr.csproj -c Release
 ```
 
-That restages `dist/Stumblr/`. Rebuild before committing so `dist/` matches `src/`.
+That stages a ready-to-copy `dist/Stumblr/`, which is not tracked by git.
 
 ## License
 
