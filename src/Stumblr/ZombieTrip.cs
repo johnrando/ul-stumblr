@@ -1,7 +1,8 @@
 namespace Stumblr
 {
 	/// <summary>
-	/// What a tripped zombie does.
+	/// What a tripped zombie does, whatever tripped it: a leg hit on a fence, an arrow at a run, a
+	/// tire underfoot or a door in the face all end here.
 	///
 	/// Nothing here is invented. Both reactions are lifted from
 	/// <c>EntityHuman.ExecuteDestroyBlockBehavior</c> - the game's own "tripped while breaking
@@ -20,6 +21,36 @@ namespace Stumblr
 	/// </summary>
 	internal static class ZombieTrip
 	{
+		/// <summary>
+		/// Whether this entity is one a trip can be played on right now. The shared front gate for
+		/// every trigger.
+		///
+		/// The entityFlags bit rather than <c>is EntityZombie</c>, because it comes from
+		/// entityclasses.xml: it covers zombie dogs and Undead Legacy's own zombies for free, and
+		/// excludes bandits and the player.
+		///
+		/// Remote entities are skipped because the move helper and the stun run on the
+		/// authoritative side: on a dedicated-server client a stun set here would be overwritten by
+		/// the next position update.
+		///
+		/// Dead, already stunned, or a crawler (walkType 21) - the game's own stumble path has
+		/// nothing to play for a rig that is already on the floor, and neither does this.
+		/// </summary>
+		internal static bool CanTrip(EntityAlive _entity)
+		{
+			if (_entity == null || (_entity.entityFlags & EntityFlags.Zombie) == EntityFlags.None)
+			{
+				return false;
+			}
+
+			if (_entity.isEntityRemote || _entity.IsDead())
+			{
+				return false;
+			}
+
+			return _entity.bodyDamage.CurrentStun == EnumEntityStunType.None && _entity.walkType != 21;
+		}
+
 		internal static void Apply(EntityAlive _zombie)
 		{
 			if (_zombie.emodel == null || _zombie.emodel.avatarController == null
@@ -53,7 +84,7 @@ namespace Stumblr
 			_zombie.bodyDamage.StunDuration = Settings.ZombieStunSeconds;
 		}
 
-		/// <summary>Just the mode, for the <c>sb</c> settings block.</summary>
+		/// <summary>Just the mode, for the <c>sb</c> settings block and the settings file.</summary>
 		internal static string Status()
 		{
 			switch (Settings.ZombieMode)
@@ -94,10 +125,10 @@ namespace Stumblr
 					+ Settings.ZombieStunSeconds + "s, back on their feet. The game's own "
 					+ "StumbleBreakThrough reaction.";
 			case ZombieReaction.Ragdoll:
-				return "Zombies RAGDOLL - knocked clean off their perch. The game's own "
+				return "Zombies RAGDOLL - knocked clean off their feet. The game's own "
 					+ "StumbleBreakThroughRagdoll reaction; it ends when the body settles.";
 			default:
-				return "Zombie trips OFF - a leg hit is just a leg hit.";
+				return "Zombie trips OFF - every trigger still counts in 'sb info', but nothing plays.";
 			}
 		}
 	}

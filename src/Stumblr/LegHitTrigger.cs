@@ -1,8 +1,9 @@
 namespace Stumblr
 {
 	/// <summary>
-	/// Trips a zombie that has just scrambled onto a fence and takes a hit to the leg, by
-	/// postfixing <c>EntityAlive.DamageEntity</c>.
+	/// The two leg-hit rules, both hung off a postfix on <c>EntityAlive.DamageEntity</c>: an arrow
+	/// or bolt to the leg of a running zombie, and any leg hit on a zombie that has just scrambled
+	/// onto a fence.
 	///
 	/// DamageEntity and not ProcessDamageResponseLocal, and that is the whole compatibility story.
 	/// Undead Legacy replaces ProcessDamageResponseLocal wholesale - a prefix that returns false
@@ -15,17 +16,35 @@ namespace Stumblr
 	///
 	/// The chance comes from the swing itself. <c>DamageSource.DismemberChance</c> is filled by the
 	/// attack from the game's DismemberChance passive, with every perk already applied - under UL
-	/// that is the weapon's action skill, Clubs or Blades or Brawler, from 0.25% at level 1 to 25%
+	/// that is the weapon's action skill, Clubs or Blades or Archery, from 0.25% at level 1 to 25%
 	/// at 100, plus its skill books. Taking a limb off and taking the legs out from under are the
-	/// same kind of luck, so the trip chance is that number times a multiplier.
+	/// same kind of luck, so each trip chance is that number times a multiplier.
 	///
-	/// A hit that lands while the zombie is still in the air is handed to <see cref="ZombieLanding"/>
-	/// to settle when it comes down; one that lands after must fall inside the window.
+	/// A projectile is told apart by what fired it. <c>ProjectileMoveScript</c> hands
+	/// <c>ItemActionAttack.Hit</c> the launcher - the bow or crossbow - as the damaging item, with a
+	/// Piercing damage type, so a hit whose item carries an <c>ItemActionLauncher</c> is an arrow or
+	/// a bolt. That is a structural test rather than a tag list, so Undead Legacy's bows and any
+	/// modded one count without being named.
+	///
+	/// "Running" is two things at once: <c>EntityHuman.IsRunning</c>, the game's own answer to
+	/// whether this zombie is currently a runner (feral, night, blood moon, or the ZombieMove
+	/// setting), and <c>speedForward</c> above the threshold the game itself uses to tell moving
+	/// from standing. A runner that has stopped is not running.
+	///
+	/// A perch hit that lands while the zombie is still in the air is handed to
+	/// <see cref="ZombieLanding"/> to settle when it comes down; one that lands after must fall
+	/// inside the window.
 	/// </summary>
 	internal static class LegHitTrigger
 	{
-		/// <summary>The last dismember chance seen on a qualifying hit, for <c>sb info</c>.</summary>
+		/// <summary>The game's own moving-vs-idle threshold on speedForward (EntityAlive.OnUpdateEntity).</summary>
+		private const float MovingSpeed = 0.01942f;
+
+		/// <summary>The last dismember chance seen on a qualifying perch hit, for <c>sb info</c>.</summary>
 		internal static string LastRoll = "no leg hit on a perched zombie yet";
+
+		/// <summary>The last arrow or bolt to a leg, for <c>sb info</c>.</summary>
+		internal static string LastArrow = "no arrow to a leg yet";
 
 		internal static void Postfix(EntityAlive __instance, DamageSource _damageSource)
 		{
@@ -34,17 +53,13 @@ namespace Stumblr
 				return;
 			}
 
-			// The entityFlags bit rather than `is EntityZombie`, because it comes from
-			// entityclasses.xml: it covers zombie dogs and Undead Legacy's own zombies for free, and
-			// excludes bandits.
 			if ((__instance.entityFlags & EntityFlags.Zombie) == EntityFlags.None)
 			{
 				return;
 			}
 
-			// The move helper and the stun run on the authoritative side. On a dedicated-server
-			// client the zombie is remote and DamageEntity still runs, for the visuals; a stun from
-			// there would be overwritten by the next position update.
+			// On a dedicated-server client the zombie is remote and DamageEntity still runs, for
+			// the visuals; nothing can be tripped from there.
 			if (__instance.isEntityRemote)
 			{
 				return;
@@ -67,15 +82,19 @@ namespace Stumblr
 
 			Counters.LegHits++;
 
-			// Dead, already down, or a crawler - the game's own stumble path has nothing to play
-			// for a rig that is already on the floor (walkType 21), and neither does this.
-			if (__instance.IsDead() || __instance.bodyDamage.CurrentStun != EnumEntityStunType.None
-				|| __instance.walkType == 21)
+			if (!ZombieTrip.CanTrip(__instance))
 			{
 				return;
 			}
 
-			float chance = _damageSource.DismemberChance * Settings.ChanceMultiplier;
+			float dismember = _damageSource.DismemberChance;
+
+			if (IsLauncherShot(_damageSource) && TryArrowTrip(__instance, dismember))
+			{
+				return;
+			}
+
+			float chance = dismember * Settings.ChanceMultiplier;
 
 			// Still in the air: nothing to stand on yet, so the landing decides. Only worth parking
 			// when there is a window for it to land inside.
@@ -93,6 +112,68 @@ namespace Stumblr
 
 			Counters.LegHitsInWindow++;
 			TryTrip(__instance, chance);
+		}
+
+		/// <summary>Whether this hit was an arrow or bolt: Piercing, from an item that launches.</summary>
+		private static bool IsLauncherShot(DamageSource _damageSource)
+		{
+			if (_damageSource.GetDamageType() != EnumDamageTypes.Piercing)
+			{
+				return false;
+			}
+
+			ItemValue item = _damageSource.AttackingItem;
+			ItemClass itemClass = item == null ? null : item.ItemClass;
+			if (itemClass == null || itemClass.Actions == null)
+			{
+				return false;
+			}
+
+			for (int i = 0; i < itemClass.Actions.Length; i++)
+			{
+				if (itemClass.Actions[i] is ItemActionLauncher)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		/// <summary>
+		/// The arrow rule. Returns true when a trip played, so the perch rule does not roll again
+		/// on the same hit; a failed roll falls through to it.
+		/// </summary>
+		private static bool TryArrowTrip(EntityAlive _zombie, float _dismember)
+		{
+			Counters.ArrowLegHits++;
+
+			bool runner = _zombie.IsRunning;
+			float speed = _zombie.speedForward;
+			bool running = runner && speed > MovingSpeed;
+			float chance = _dismember * Settings.ArrowMultiplier;
+
+			LastArrow = "dismember " + Format.Percent(_dismember * 100f) + " "
+				+ Format.Times(Settings.ArrowMultiplier) + " = " + Format.Percent(chance * 100f)
+				+ ", " + (running ? "running" : runner ? "a runner, but standing still" : "not a runner")
+				+ " (speed " + Format.Number(speed) + ")";
+
+			if (!running)
+			{
+				return false;
+			}
+
+			Counters.ArrowRunningHits++;
+
+			if (Settings.ZombieMode == ZombieReaction.Off || chance <= 0f
+				|| _zombie.rand.RandomFloat >= chance)
+			{
+				return false;
+			}
+
+			Counters.ArrowTrips++;
+			ZombieTrip.Apply(_zombie);
+			return true;
 		}
 
 		/// <summary>
@@ -136,7 +217,19 @@ namespace Stumblr
 		/// <summary>The <c>sb chance</c> menu line.</summary>
 		internal static string Status()
 		{
-			return "trip chance = swing's dismember chance " + Format.Times(Settings.ChanceMultiplier);
+			return "perch trip chance = swing's dismember chance " + Format.Times(Settings.ChanceMultiplier);
+		}
+
+		/// <summary>The <c>sb arrow</c> menu line.</summary>
+		internal static string ArrowStatus()
+		{
+			if (Settings.ArrowMultiplier <= 0f)
+			{
+				return "off - an arrow to the leg is just an arrow to the leg";
+			}
+
+			return "arrow to a running zombie's leg trips at dismember chance "
+				+ Format.Times(Settings.ArrowMultiplier);
 		}
 	}
 }

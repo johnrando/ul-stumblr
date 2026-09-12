@@ -10,7 +10,7 @@ namespace Stumblr
 	/// in the window but none on a narrow block means the block you are testing on is not
 	/// measuring narrow - <c>sb probe</c> it.
 	///
-	/// No locking: all writes happen on the main thread, from the two hooks.
+	/// No locking: all writes happen on the main thread, from the hooks.
 	/// </summary>
 	internal static class Counters
 	{
@@ -35,8 +35,31 @@ namespace Stumblr
 
 		internal static int LegHitsOnNarrow;
 
+		/// <summary>Perch trips: the original rule.</summary>
 		internal static int Trips;
 
+		/// <summary>Leg hits that were an arrow or bolt from a bow or crossbow.</summary>
+		internal static int ArrowLegHits;
+
+		/// <summary>Of those, the ones on a zombie that was running at the time.</summary>
+		internal static int ArrowRunningHits;
+
+		internal static int ArrowTrips;
+
+		/// <summary>Tires a player put down while the rule was on.</summary>
+		internal static int TiresPlaced;
+
+		/// <summary>Zombies that stepped into a live tire, one per zombie per tire.</summary>
+		internal static int TireSteps;
+
+		internal static int TireTrips;
+
+		/// <summary>Slams DoorSlammer handed over with flavor on both sides.</summary>
+		internal static int DoorProcs;
+
+		internal static int DoorTrips;
+
+		/// <summary>Trips of any kind that played the ragdoll rather than the stumble.</summary>
 		internal static int ZombieRagdolls;
 
 		internal static void Reset()
@@ -50,6 +73,14 @@ namespace Stumblr
 			LegHitsInWindow = 0;
 			LegHitsOnNarrow = 0;
 			Trips = 0;
+			ArrowLegHits = 0;
+			ArrowRunningHits = 0;
+			ArrowTrips = 0;
+			TiresPlaced = 0;
+			TireSteps = 0;
+			TireTrips = 0;
+			DoorProcs = 0;
+			DoorTrips = 0;
 			ZombieRagdolls = 0;
 		}
 	}

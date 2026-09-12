@@ -116,7 +116,7 @@ namespace Stumblr
 			return null;
 		}
 
-		private static Assembly FindAssembly(string _simpleName)
+		internal static Assembly FindAssembly(string _simpleName)
 		{
 			Assembly[] loaded = AppDomain.CurrentDomain.GetAssemblies();
 			for (int i = 0; i < loaded.Length; i++)

@@ -229,7 +229,7 @@ namespace Stumblr
 			return _block.shape == null ? null : _block.shape.GetName();
 		}
 
-		private static bool Matches(string _name, List<string> _patterns, out string _hit)
+		internal static bool Matches(string _name, List<string> _patterns, out string _hit)
 		{
 			_hit = null;
 			if (string.IsNullOrEmpty(_name))
