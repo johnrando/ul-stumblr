@@ -15,7 +15,7 @@ own stumble animations:
 
 **Undead Legacy is not required** and nothing of UL's is modified, but the mod is built with UL in
 mind: the leg-hit chances grow with the weapon skills UL levels by use, and tires are only
-obtainable through UL's pick-up. Tested against **UL 2.7.15 - 2.7.31**.
+obtainable through UL's pick-up. Tested against **UL 2.7.15 - 2.7.32**.
 
 ## Installing
 
