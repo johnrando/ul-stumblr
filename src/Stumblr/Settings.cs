@@ -1,12 +1,11 @@
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace Stumblr
 {
-	/// <summary>Which reaction a caught zombie plays, if any.</summary>
+	/// <summary>Which reaction a tripped zombie plays, if any.</summary>
 	internal enum ZombieReaction
 	{
-		/// <summary>Nothing. Zombies jump fences exactly as vanilla lets them.</summary>
+		/// <summary>Nothing. A leg hit is just a leg hit.</summary>
 		Off,
 
 		/// <summary>The game's own StumbleBreakThrough - it staggers and recovers on its feet.</summary>
@@ -18,31 +17,44 @@ namespace Stumblr
 
 	/// <summary>
 	/// Runtime knobs, all switchable from the <c>sb</c> console command. Deliberately plain statics
-	/// rather than a config file: the chances are what you want to wind up to 100 for one test and
-	/// back down again, with a fence in front of you.
+	/// rather than a config file: the multiplier is what you want to wind up to 100 for one test and
+	/// back down again, with a zombie on a fence in front of you.
 	/// </summary>
 	internal static class Settings
 	{
-		/// <summary>Master switch. When off, both jump hooks return immediately.</summary>
+		/// <summary>Master switch. When off, both hooks return immediately.</summary>
 		internal static bool Enabled = true;
 
 		/// <summary>
-		/// Percent chance the player trips, at Athletics level 1. Scaled down toward
-		/// <see cref="PlayerChanceFloor"/> as the perk levels; see <see cref="TripChance"/>.
+		/// The trip chance is the attacking swing's dismember chance times this. The dismember
+		/// chance is the game's own number for the hit - Undead Legacy raises it from 0.25% to 25%
+		/// as the weapon's action skill levels 1 to 100, and its skill books add more - so a
+		/// multiplier of 2 means a fresh character trips a perched zombie about one swing in two
+		/// hundred and a master about one in two. See <see cref="LegHitTrigger"/>.
 		/// </summary>
-		internal static float PlayerChance = 1f;
+		internal static float ChanceMultiplier = 2f;
 
 		/// <summary>
-		/// Percent chance the player trips at the Athletics cap. Never zero by default: a tenfold
-		/// reduction is meant to be worth earning without ever making a fence free again.
+		/// Seconds either side of a zombie's landing during which a leg hit can trip it. The idea
+		/// is a zombie that has just scrambled onto a fence and has not found its balance; one that
+		/// has been standing up there a while has. A hit before the landing is parked and judged
+		/// when it comes down; see <see cref="ZombieLanding"/>. 0 switches the window check off,
+		/// so any zombie standing on a narrow block counts.
 		/// </summary>
-		internal static float PlayerChanceFloor = 0.1f;
+		internal static float WindowSeconds = 0.5f;
 
 		/// <summary>
-		/// Percent chance a zombie is caught. Not scaled by anything - zombies have no skill to
-		/// read, and a horde spilling over a fence is where this is worth seeing.
+		/// A block is narrow when the thinner of its two horizontal extents is at most this many
+		/// blocks wide. The game clamps a shape's bounds to no less than 0.2 wide, so a pole reads
+		/// as 0.2; a fence or railing as 0.1 to 0.3; a full cube as 1.
 		/// </summary>
-		internal static float ZombieChance = 2f;
+		internal static float NarrowWidth = 0.4f;
+
+		/// <summary>
+		/// A narrow block must also be at least this tall, so a thin floor plate does not count as
+		/// something to lose your footing on.
+		/// </summary>
+		internal static float NarrowMinHeight = 0.5f;
 
 		/// <summary>
 		/// How far from ground level, in blocks, a trip can still happen. Measured against
@@ -51,23 +63,6 @@ namespace Stumblr
 		/// punishing and less plausible. See <see cref="GroundLevel"/>.
 		/// </summary>
 		internal static int GroundBand = 3;
-
-		/// <summary>Whether a trip plays the player's own small-pain grunt.</summary>
-		internal static bool PlaySound = true;
-
-		/// <summary>Whether a trip tips the horizon. See <see cref="PlayerTrip"/>.</summary>
-		internal static bool RollCamera = true;
-
-		/// <summary>Whether a trip kicks the held item and hands.</summary>
-		internal static bool JoltWeapon = true;
-
-		/// <summary>
-		/// Of the zombies that trip, the percentage caught on the near side - the jump is cancelled
-		/// and they never leave the ground. The rest clear the obstacle and go down on the far side
-		/// instead. 50 means an even mix, which reads better than either extreme: all-near looks
-		/// like an invisible wall, all-far like they were never troubled by the fence.
-		/// </summary>
-		internal static float ZombieCatchPercent = 50f;
 
 		/// <summary>What a tripping zombie does. Cycled with <c>sb zombie</c>.</summary>
 		internal static ZombieReaction ZombieMode = ZombieReaction.Stumble;
@@ -79,32 +74,11 @@ namespace Stumblr
 		internal static float ZombieStunSeconds = 1f;
 
 		/// <summary>
-		/// How hard the horizon tips, as a one-shot roll force with a randomised sign. Vanilla's own
-		/// DoBomb - the explosion knock - uses 1 to 2, so a trip sits just under an explosion.
-		/// </summary>
-		internal static float RollForce = 0.8f;
-
-		/// <summary>
-		/// The kick given to the held item, on the same springs a gunshot's recoil drives. For
-		/// scale, a gunshot is a positional (0, 0, -0.035) and a rotational (-10, 0, 0) degrees;
-		/// these are a little larger and sideways-biased so a trip does not read as a shot. The x
-		/// of the position and the y and z of the rotation take a randomised sign.
-		/// </summary>
-		internal static Vector3 JoltPosition = new Vector3(0.02f, -0.05f, -0.03f);
-
-		internal static Vector3 JoltRotation = new Vector3(-12f, 6f, 10f);
-
-		/// <summary>
-		/// Minimum seconds between two player trips. Undead Legacy adds a double jump, so one fence
-		/// can raise the landing hook more than once; this keeps that to a single grunt.
-		/// </summary>
-		internal static float PlayerCooldownSeconds = 0.5f;
-
-		/// <summary>
-		/// Case-insensitive substrings that count as trippable, matched against both the block's
-		/// name and its shape's - see <see cref="TripBlocks"/> for why both. Vanilla ships no fence
-		/// or railing tag, so names are all there is to go on. Editable in-game with <c>sb add</c>
-		/// / <c>sb drop</c>.
+		/// Case-insensitive substrings that count as narrow regardless of their measured bounds,
+		/// matched against both the block's name and its shape's - see <see cref="NarrowBlocks"/>
+		/// for why both. The bounds test does most of the work; this is for things whose bounds
+		/// are wide but whose footing is not, like a hedge or a coil of barbed wire. Editable
+		/// in-game with <c>sb add</c> / <c>sb drop</c>.
 		/// </summary>
 		internal static readonly List<string> Include = new List<string>
 		{
@@ -114,8 +88,8 @@ namespace Stumblr
 		};
 
 		/// <summary>
-		/// Substrings that veto a match. These are all caught by <see cref="Include"/> but are not
-		/// things you hop: doors and gates are opened, and the helper blocks are never placed.
+		/// Substrings that veto a match, checked before either the include list or the bounds. Doors
+		/// and gates are opened rather than perched on, and the helper blocks are never placed.
 		/// </summary>
 		internal static readonly List<string> Exclude = new List<string>
 		{

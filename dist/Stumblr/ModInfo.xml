@@ -2,8 +2,8 @@
 <xml>
 	<Name value="Stumblr" />
 	<DisplayName value="Stumblr" />
-	<Description value="Jumping a fence, railing or guardrail carries a tiny chance of tripping. A zombie catches a foot and goes down in one of the game's own stumble animations; the player always gets over, and only lands badly - a grunt and a jolt of the view, nothing else. Athletics reduces the player's odds. Compatible with Undead Legacy." />
+	<Description value="A zombie that has just jumped onto a fence, railing, pole or other narrow block has not found its balance. Hit it in the leg as it lands, half a second either side, and it can go down in one of the game's own stumble animations. The chance is the swing's dismember chance times two, so it grows with the weapon skill. Compatible with Undead Legacy." />
 	<Author value="John Rando" />
-	<Version value="0.0.0.1" />
+	<Version value="0.0.0.2" />
 	<Website value="" />
 </xml>

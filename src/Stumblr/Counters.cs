@@ -6,53 +6,50 @@ namespace Stumblr
 	///
 	/// There is one counter per gate, in the order the gates are checked, because that is what makes
 	/// a mis-tuned setting diagnosable without a debugger: the stage where the number stops moving
-	/// names the setting to change. Jumps but no near-ground means the band is too tight; near-ground
-	/// but nothing trippable means the block list is missing the fence you are standing at.
+	/// names the setting to change. Leg hits but none in the window means the window is too tight;
+	/// in the window but none on a narrow block means the block you are testing on is not
+	/// measuring narrow - <c>sb probe</c> it.
 	///
-	/// No locking: all writes happen on the main thread, from the two jump hooks.
+	/// No locking: all writes happen on the main thread, from the two hooks.
 	/// </summary>
 	internal static class Counters
 	{
-		/// <summary>Every jump either hook saw, player or zombie. The proof they are live.</summary>
-		internal static int JumpsSeen;
+		/// <summary>Every zombie landing the landing hook saw. The proof it is live.</summary>
+		internal static int Landings;
 
-		internal static int PlayerJumps;
+		/// <summary>Every hit on a non-remote zombie the damage hook saw. The proof it is live.</summary>
+		internal static int ZombieHits;
 
-		internal static int PlayerNearGround;
+		internal static int PlayerHits;
 
-		internal static int PlayerOverTrippable;
+		internal static int LegHits;
 
-		internal static int PlayerTrips;
+		/// <summary>Leg hits taken mid-jump and parked for the landing.</summary>
+		internal static int LegHitsInAir;
 
-		internal static int ZombieJumps;
+		/// <summary>Of those, the ones whose landing came inside the window.</summary>
+		internal static int AirHitsLanded;
 
-		internal static int ZombieNearGround;
+		/// <summary>Leg hits taken on the ground inside the window after a landing.</summary>
+		internal static int LegHitsInWindow;
 
-		internal static int ZombieOverTrippable;
+		internal static int LegHitsOnNarrow;
 
-		internal static int ZombieTrips;
-
-		/// <summary>Of the trips, the ones caught before the jump.</summary>
-		internal static int ZombieNearSide;
-
-		/// <summary>Of the trips, the ones that cleared it and went down on landing.</summary>
-		internal static int ZombieFarSide;
+		internal static int Trips;
 
 		internal static int ZombieRagdolls;
 
 		internal static void Reset()
 		{
-			JumpsSeen = 0;
-			PlayerJumps = 0;
-			PlayerNearGround = 0;
-			PlayerOverTrippable = 0;
-			PlayerTrips = 0;
-			ZombieJumps = 0;
-			ZombieNearGround = 0;
-			ZombieOverTrippable = 0;
-			ZombieTrips = 0;
-			ZombieNearSide = 0;
-			ZombieFarSide = 0;
+			Landings = 0;
+			ZombieHits = 0;
+			PlayerHits = 0;
+			LegHits = 0;
+			LegHitsInAir = 0;
+			AirHitsLanded = 0;
+			LegHitsInWindow = 0;
+			LegHitsOnNarrow = 0;
+			Trips = 0;
 			ZombieRagdolls = 0;
 		}
 	}

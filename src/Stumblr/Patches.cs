@@ -5,20 +5,18 @@ using HarmonyLib;
 namespace Stumblr
 {
 	/// <summary>
-	/// Installs the mod's three Harmony patches. Each is resolved late and gated on its own target,
+	/// Installs the mod's two Harmony patches. Each is resolved late and gated on its own target,
 	/// so a game update that moves one degrades to a log line naming the behaviour that is therefore
-	/// missing, rather than an exception during mod init. The zombie hook and the two player hooks
-	/// are independent - either half can fail without taking the other down.
+	/// missing, rather than an exception during mod init.
 	///
 	/// Load order needs no declaration. Undead Legacy applies its own patches as a BepInEx plugin
 	/// roughly a second before the game calls any IModApi.InitMod, so by the time this runs both are
 	/// fully present regardless of mod folder ordering.
 	///
-	/// The one thing that does need care is which method the zombie hook targets. UL replaces
-	/// EntityMoveHelper.UpdateMoveHelper wholesale - a prefix with fourteen `return false` and no
-	/// `return true` - so a patch there would never run under UL. UL does not touch
-	/// EntityMoveHelper.StartJump, and its replacement calls it, which is why that is the target.
-	/// See ZombieJumpTrigger, and ../ul-decomp/CLAUDE.md for the full analysis.
+	/// The one thing that does need care is which method the damage hook targets. UL replaces
+	/// EntityAlive.ProcessDamageResponseLocal wholesale - a prefix that returns false - so a patch
+	/// there would never run under UL. UL does not touch EntityAlive.DamageEntity, which is why that
+	/// is the target. See LegHitTrigger, and the sibling ul-decomp project for the toolchain.
 	/// </summary>
 	internal static class Patches
 	{
@@ -29,11 +27,9 @@ namespace Stumblr
 		private const string NotRunYet = "not applied - mod init has not run";
 
 		/// <summary>Outcome of each patch, as reported by <c>sb info</c>.</summary>
-		internal static string ZombieJumpHookStatus = NotRunYet;
+		internal static string LandingHookStatus = NotRunYet;
 
-		internal static string PlayerJumpHookStatus = NotRunYet;
-
-		internal static string PlayerLandHookStatus = NotRunYet;
+		internal static string LegHitHookStatus = NotRunYet;
 
 		private static bool applied;
 
@@ -60,86 +56,54 @@ namespace Stumblr
 			UndeadLegacyInfo.Report();
 
 			Harmony harmony = new Harmony(HarmonyId);
-			ApplyZombieJumpHook(harmony);
-			ApplyPlayerJumpHook(harmony);
-			ApplyPlayerLandHook(harmony);
+			ApplyLandingHook(harmony);
+			ApplyLegHitHook(harmony);
 		}
 
 		/// <summary>
-		/// The zombie half. Without it no zombie is ever caught on a fence.
+		/// Records when each zombie lands. Without it the window check never passes and, unless the
+		/// window is set to 0, no zombie ever trips. A postfix, which coexists safely with Undead
+		/// Legacy's own prefix on the same method (H_EntityPlayerLocal, which returns true).
 		/// </summary>
-		private static void ApplyZombieJumpHook(Harmony _harmony)
-		{
-			MethodInfo target = AccessTools.DeclaredMethod(typeof(EntityMoveHelper), "StartJump");
-			if (target == null)
-			{
-				ZombieJumpHookStatus = "NOT APPLIED - EntityMoveHelper.StartJump not found";
-				Log.Error(LogPrefix + "Zombie jump hook NOT applied: EntityMoveHelper.StartJump could "
-					+ "not be found, so zombies will never be caught on a fence.");
-				return;
-			}
-
-			_harmony.Patch(target, prefix: new HarmonyMethod(
-				AccessTools.DeclaredMethod(typeof(ZombieJumpTrigger), nameof(ZombieJumpTrigger.Prefix))));
-
-			ZombieJumpHookStatus = "applied - prefix on EntityMoveHelper.StartJump";
-			Log.Out(LogPrefix + "Zombie jump hook applied: a zombie jumping a low obstacle can now "
-				+ "catch a foot on it.");
-		}
-
-		/// <summary>
-		/// Half the player pair: records where a jump began. Without it the landing hook has nothing
-		/// to measure and no player ever trips.
-		///
-		/// EntityAlive.StartJump, and not EntityPlayer.StartJumpMotion, which was the first attempt
-		/// and never fired. The local player's jump is driven by UFPS, not by EntityAlive's own
-		/// JumpState machine: EntityPlayerLocal.OnUpdateLive sets Jumping = true and later calls
-		/// EndJump() directly, so UpdateJump - the only caller of StartJumpMotion - never runs for
-		/// the player. The Jumping setter does call StartJump, so this fires for both the player and
-		/// zombies; RecordTakeOff filters to the local player itself.
-		/// </summary>
-		private static void ApplyPlayerJumpHook(Harmony _harmony)
-		{
-			MethodInfo target = AccessTools.DeclaredMethod(typeof(EntityAlive), "StartJump");
-			if (target == null)
-			{
-				PlayerJumpHookStatus = "NOT APPLIED - EntityAlive.StartJump not found";
-				Log.Error(LogPrefix + "Player jump hook NOT applied: EntityAlive.StartJump could not "
-					+ "be found, so the landing hook has no take-off to measure from and the player "
-					+ "will never trip.");
-				return;
-			}
-
-			_harmony.Patch(target, postfix: new HarmonyMethod(
-				AccessTools.DeclaredMethod(typeof(PlayerJumpTrigger),
-					nameof(PlayerJumpTrigger.RecordTakeOff))));
-
-			PlayerJumpHookStatus = "applied - postfix on EntityAlive.StartJump";
-			Log.Out(LogPrefix + "Player jump hook applied: take-off positions are now recorded.");
-		}
-
-		/// <summary>
-		/// The other half: decides on landing. A postfix, which coexists safely with Undead Legacy's
-		/// own prefix on the same method (H_EntityPlayerLocal, which returns true and fires
-		/// onSelfLandJump).
-		/// </summary>
-		private static void ApplyPlayerLandHook(Harmony _harmony)
+		private static void ApplyLandingHook(Harmony _harmony)
 		{
 			MethodInfo target = AccessTools.DeclaredMethod(typeof(EntityAlive), "EndJump");
 			if (target == null)
 			{
-				PlayerLandHookStatus = "NOT APPLIED - EntityAlive.EndJump not found";
-				Log.Error(LogPrefix + "Player landing hook NOT applied: EntityAlive.EndJump could not "
-					+ "be found, so the player will never trip.");
+				LandingHookStatus = "NOT APPLIED - EntityAlive.EndJump not found";
+				Log.Error(LogPrefix + "Landing hook NOT applied: EntityAlive.EndJump could not be "
+					+ "found, so no landing is ever recorded and the trip window never opens.");
 				return;
 			}
 
 			_harmony.Patch(target, postfix: new HarmonyMethod(
-				AccessTools.DeclaredMethod(typeof(PlayerJumpTrigger), nameof(PlayerJumpTrigger.Postfix))));
+				AccessTools.DeclaredMethod(typeof(ZombieLanding), nameof(ZombieLanding.Postfix))));
 
-			PlayerLandHookStatus = "applied - postfix on EntityAlive.EndJump";
-			Log.Out(LogPrefix + "Player landing hook applied: jumping a fence can now cost you your "
-				+ "footing.");
+			LandingHookStatus = "applied - postfix on EntityAlive.EndJump";
+			Log.Out(LogPrefix + "Landing hook applied: zombie landings are now timed.");
+		}
+
+		/// <summary>
+		/// The hit itself. Without it nothing ever trips.
+		/// </summary>
+		private static void ApplyLegHitHook(Harmony _harmony)
+		{
+			MethodInfo target = AccessTools.DeclaredMethod(typeof(EntityAlive), "DamageEntity",
+				new[] { typeof(DamageSource), typeof(int), typeof(bool), typeof(float) });
+			if (target == null)
+			{
+				LegHitHookStatus = "NOT APPLIED - EntityAlive.DamageEntity not found";
+				Log.Error(LogPrefix + "Leg hit hook NOT applied: EntityAlive.DamageEntity(DamageSource, "
+					+ "int, bool, float) could not be found, so nothing will ever trip.");
+				return;
+			}
+
+			_harmony.Patch(target, postfix: new HarmonyMethod(
+				AccessTools.DeclaredMethod(typeof(LegHitTrigger), nameof(LegHitTrigger.Postfix))));
+
+			LegHitHookStatus = "applied - postfix on EntityAlive.DamageEntity";
+			Log.Out(LogPrefix + "Leg hit hook applied: a zombie perched on a fence can now be tripped "
+				+ "with a hit to the leg.");
 		}
 	}
 }

@@ -10,10 +10,11 @@ namespace Stumblr
 	/// shows what that command left behind. The toggles list their choices with the live one marked,
 	/// so the block is also the answer to "what can I set this to".
 	///
-	/// It is kept short on purpose. Everything that answers "is this thing working" lives in
-	/// <c>sb info</c> instead, and matters more here than in either sibling: a trip is rare by
-	/// design, so not seeing one proves nothing. The per-gate counters are the only way to tell a
-	/// 1% roll that has not come up from a block list that never matches.
+	/// Everything that answers "is this thing working" lives in <c>sb info</c>, and <c>sb probe</c>
+	/// answers "why does the mod think this block is, or is not, narrow" for whatever the crosshair
+	/// is on. A trip is rare by design, so not seeing one proves nothing; the per-gate counters and
+	/// the probe are the only way to tell a roll that has not come up from a block that never
+	/// measures narrow.
 	/// </summary>
 	public class ConsoleCmdStumblr : ConsoleCmdAbstract
 	{
@@ -34,31 +35,16 @@ namespace Stumblr
 				SetChance(_params);
 				return;
 
-			case "floor":
-				SetFloor(_params);
+			case "window":
+				SetWindow(_params);
+				return;
+
+			case "narrow":
+				SetNarrow(_params);
 				return;
 
 			case "ground":
 				SetGround(_params);
-				return;
-
-			case "hurt":
-				Settings.PlaySound = !Settings.PlaySound;
-				Output(TripSound.Describe());
-				return;
-
-			case "shake":
-				Settings.RollCamera = !Settings.RollCamera;
-				Output(PlayerTrip.DescribeRoll());
-				return;
-
-			case "jolt":
-				Settings.JoltWeapon = !Settings.JoltWeapon;
-				Output(PlayerTrip.DescribeJolt());
-				return;
-
-			case "catch":
-				SetCatch(_params);
 				return;
 
 			case "zombie":
@@ -67,7 +53,7 @@ namespace Stumblr
 				return;
 
 			case "blocks":
-				Output(TripBlocks.Describe());
+				Output(NarrowBlocks.Describe());
 				return;
 
 			case "add":
@@ -76,6 +62,10 @@ namespace Stumblr
 
 			case "drop":
 				DropPattern(_params);
+				return;
+
+			case "probe":
+				Probe();
 				return;
 
 			case "info":
@@ -89,7 +79,7 @@ namespace Stumblr
 
 			default:
 				Output("Unknown option '" + _params[0]
-					+ "'. Try: sb [chance|floor|ground|hurt|shake|jolt|catch|zombie|blocks|add|drop|info|reset]");
+					+ "'. Try: sb [chance|window|narrow|ground|zombie|blocks|add|drop|probe|info|reset]");
 				return;
 			}
 		}
@@ -101,17 +91,12 @@ namespace Stumblr
 		private static void OutputMenu(string _header)
 		{
 			Output(_header);
-			Line("sb chance {p} {z}", ChanceLine());
-			Line("sb floor {p}", FloorLine());
+			Line("sb chance {mult}", LegHitTrigger.Status());
+			Line("sb window {s}", ZombieLanding.Status());
+			Line("sb narrow {w} {h}", NarrowBlocks.Status());
 			Line("sb ground {n}", GroundLevel.Status());
-			Line("sb hurt", Choices(Mark("on", Settings.PlaySound), Mark("off", !Settings.PlaySound)));
-			Line("sb shake", Choices(Mark("on", Settings.RollCamera),
-				Mark("off", !Settings.RollCamera)));
-			Line("sb jolt", Choices(Mark("on", Settings.JoltWeapon),
-				Mark("off", !Settings.JoltWeapon)));
-			Line("sb catch {pct}", CatchLine());
 			Line("sb zombie", ZombieChoices());
-			Line("sb blocks", TripBlocks.Status());
+			Line("sb blocks", NarrowBlocks.BlocksStatus());
 		}
 
 		private static void OutputStatus()
@@ -124,31 +109,28 @@ namespace Stumblr
 		{
 			OutputMenu("Stumblr is " + (Settings.Enabled ? "ON" : "OFF"));
 			Line("Undead Legacy", UndeadLegacyInfo.Status);
-			Line("zombie jump hook", Patches.ZombieJumpHookStatus);
-			Line("player jump hook", Patches.PlayerJumpHookStatus);
-			Line("player land hook", Patches.PlayerLandHookStatus);
-			Line("Athletics", TripChance.Status(GetLocalPlayer()));
-			Line("last trip sound", TripSound.LastPlayed);
-			Line("jumps seen", Counters.JumpsSeen.ToString());
-			Line("player", Counters.PlayerJumps + " jumps, " + Counters.PlayerNearGround
-				+ " near ground, " + Counters.PlayerOverTrippable + " over a fence, "
-				+ Counters.PlayerTrips + " tripped");
-			Line("zombies", Counters.ZombieJumps + " jumps, " + Counters.ZombieNearGround
-				+ " near ground, " + Counters.ZombieOverTrippable + " over a fence, "
-				+ Counters.ZombieTrips + " tripped (" + Counters.ZombieNearSide + " caught, "
-				+ Counters.ZombieFarSide + " on landing, " + Counters.ZombieRagdolls
-				+ " ragdolled)");
+			Line("landing hook", Patches.LandingHookStatus);
+			Line("leg hit hook", Patches.LegHitHookStatus);
+			Line("landings seen", Counters.Landings.ToString());
+			Line("zombie hits", Counters.ZombieHits + " seen, " + Counters.PlayerHits + " by a player, "
+				+ Counters.LegHits + " to a leg, " + Counters.LegHitsInAir + " in the air ("
+				+ Counters.AirHitsLanded + " landed in time), " + Counters.LegHitsInWindow
+				+ " after landing, " + Counters.LegHitsOnNarrow + " on a narrow block, "
+				+ Counters.Trips + " tripped (" + Counters.ZombieRagdolls + " ragdolled)");
+			Line("last roll", LegHitTrigger.LastRoll);
+			Line("last footing", NarrowBlocks.LastChecked);
 
-			if (Counters.JumpsSeen == 0)
+			if (Counters.ZombieHits == 0)
 			{
-				Output("Note: no jump has reached the hooks yet. Jumping anywhere should move that");
-				Output("number - if it stays at zero, the hooks are not live.");
+				Output("Note: no hit on a zombie has reached the hook yet. Hitting any zombie should");
+				Output("move that number - if it stays at zero, the hook is not live, or you are a");
+				Output("client of a dedicated server, where zombies are remote and never trip.");
 			}
 		}
 
 		/// <summary>
 		/// One line of the block. Every label is padded to the width of the longest one -
-		/// "sb chance {p} {z}" - so the settings and the read-only lines share a column and
+		/// "sb narrow {w} {h}" - so the settings and the read-only lines share a column and
 		/// <c>sb info</c> reads as one block rather than two.
 		/// </summary>
 		private static void Line(string _label, string _value)
@@ -168,56 +150,58 @@ namespace Stumblr
 
 		private static void SetChance(List<string> _params)
 		{
-			if (_params.Count != 3)
+			if (_params.Count != 2)
 			{
-				Output("Usage: sb chance {p} {z} - currently: " + ChanceLine());
+				Output("Usage: sb chance {mult} - currently: " + LegHitTrigger.Status());
 				return;
 			}
 
-			if (!TryPercent(_params[1], "player chance", out float player)
-				|| !TryPercent(_params[2], "zombie chance", out float zombie))
+			if (!TryNumber(_params[1], "multiplier", 1000f, out float multiplier))
 			{
 				return;
 			}
 
-			if (player < Settings.PlayerChanceFloor)
-			{
-				Output("Player chance " + TripChance.Percent(player) + " is below the Athletics floor "
-					+ TripChance.Percent(Settings.PlayerChanceFloor)
-					+ " - lower the floor first with 'sb floor'.");
-				return;
-			}
-
-			Settings.PlayerChance = player;
-			Settings.ZombieChance = zombie;
-			Output("Trip chance: " + ChanceLine());
+			Settings.ChanceMultiplier = multiplier;
+			Output("Trip chance: " + LegHitTrigger.Status());
 		}
 
-		private static void SetFloor(List<string> _params)
+		private static void SetWindow(List<string> _params)
 		{
 			if (_params.Count != 2)
 			{
-				Output("Usage: sb floor {p} - currently: " + FloorLine());
+				Output("Usage: sb window {seconds} - currently: " + ZombieLanding.Status()
+					+ ". Applies before and after the landing; 0 means any time.");
 				return;
 			}
 
-			if (!TryPercent(_params[1], "floor", out float floor))
+			if (!TryNumber(_params[1], "window", 60f, out float seconds))
 			{
 				return;
 			}
 
-			// Rejected rather than clamped: a floor above the base would run the curve backwards, so
-			// say so instead of quietly doing something else.
-			if (floor > Settings.PlayerChance)
+			Settings.WindowSeconds = seconds;
+			Output("Window: " + ZombieLanding.Status());
+		}
+
+		private static void SetNarrow(List<string> _params)
+		{
+			if (_params.Count != 3)
 			{
-				Output("A floor of " + TripChance.Percent(floor) + " is above the base chance "
-					+ TripChance.Percent(Settings.PlayerChance)
-					+ " - raise the base first with 'sb chance'.");
+				Output("Usage: sb narrow {width} {height} - currently: " + NarrowBlocks.Status()
+					+ ". Both in blocks; 'sb probe' shows a block's measured size.");
 				return;
 			}
 
-			Settings.PlayerChanceFloor = floor;
-			Output("Athletics floor: " + FloorLine());
+			if (!TryNumber(_params[1], "width", 1f, out float width)
+				|| !TryNumber(_params[2], "height", 1f, out float height))
+			{
+				return;
+			}
+
+			Settings.NarrowWidth = width;
+			Settings.NarrowMinHeight = height;
+			NarrowBlocks.RulesChanged();
+			Output("Narrow: " + NarrowBlocks.Status());
 		}
 
 		private static void SetGround(List<string> _params)
@@ -237,41 +221,24 @@ namespace Stumblr
 			Output("Ground band: " + GroundLevel.Status());
 		}
 
-		private static void SetCatch(List<string> _params)
-		{
-			if (_params.Count != 2)
-			{
-				Output("Usage: sb catch {pct} - currently: " + CatchLine());
-				return;
-			}
-
-			if (!TryPercent(_params[1], "catch share", out float share))
-			{
-				return;
-			}
-
-			Settings.ZombieCatchPercent = share;
-			Output("Catch share: " + CatchLine());
-		}
-
 		private static void AddPattern(List<string> _params)
 		{
 			if (_params.Count != 2)
 			{
-				Output("Usage: sb add {pattern} - a block-name substring, like 'balustrade'.");
+				Output("Usage: sb add {pattern} - a block or shape name substring, like 'balustrade'.");
 				return;
 			}
 
 			string pattern = _params[1].ToLowerInvariant();
 			if (Settings.Include.Contains(pattern))
 			{
-				Output("'" + pattern + "' is already trippable.");
+				Output("'" + pattern + "' is already always narrow.");
 				return;
 			}
 
 			Settings.Include.Add(pattern);
-			TripBlocks.PatternsChanged();
-			Output("Added '" + pattern + "'. " + TripBlocks.Status());
+			NarrowBlocks.RulesChanged();
+			Output("Added '" + pattern + "'. " + NarrowBlocks.BlocksStatus());
 		}
 
 		private static void DropPattern(List<string> _params)
@@ -291,23 +258,51 @@ namespace Stumblr
 				return;
 			}
 
-			TripBlocks.PatternsChanged();
-			Output("Dropped '" + pattern + "'. " + TripBlocks.Status());
+			NarrowBlocks.RulesChanged();
+			Output("Dropped '" + pattern + "'. " + NarrowBlocks.BlocksStatus());
 		}
 
 		/// <summary>
-		/// A percentage from 0 to 100. Parsed against the invariant culture rather than the player's,
-		/// so "0.1" means the same thing on a machine whose decimal separator is a comma.
+		/// The block under the crosshair, measured. The player's own HitInfo is the same raycast the
+		/// game uses to decide what you are about to hit, so what this prints is what a swing would
+		/// land on.
 		/// </summary>
-		private static bool TryPercent(string _value, string _what, out float _parsed)
+		private static void Probe()
+		{
+			EntityPlayerLocal player = GetLocalPlayer();
+			if (player == null)
+			{
+				Output("No local player - 'sb probe' needs a player looking at a block, so it works in "
+					+ "single player or as the host.");
+				return;
+			}
+
+			WorldRayHitInfo hitInfo = player.HitInfo;
+			if (hitInfo == null || !hitInfo.bHitValid)
+			{
+				Output("Nothing under the crosshair within reach.");
+				return;
+			}
+
+			Vector3i pos = hitInfo.hit.blockPos;
+			BlockValue blockValue = player.world.GetBlock(pos);
+			Output(NarrowBlocks.Probe(blockValue, pos));
+		}
+
+		/// <summary>
+		/// A non-negative number up to <paramref name="_max"/>. Parsed against the invariant culture
+		/// rather than the player's, so "0.4" means the same thing on a machine whose decimal
+		/// separator is a comma.
+		/// </summary>
+		private static bool TryNumber(string _value, string _what, float _max, out float _parsed)
 		{
 			// !(x >= 0f) rather than x < 0f, because NaN parses successfully and then fails every
 			// comparison - a plain "less than zero" test would wave it through.
 			if (!float.TryParse(_value, NumberStyles.Float, CultureInfo.InvariantCulture, out _parsed)
-				|| !(_parsed >= 0f) || _parsed > 100f)
+				|| !(_parsed >= 0f) || _parsed > _max)
 			{
-				Output("'" + _value + "' is not a valid " + _what + " - a percentage from 0 to 100, "
-					+ "like 1.0.");
+				Output("'" + _value + "' is not a valid " + _what + " - a number from 0 to "
+					+ Format.Number(_max) + ".");
 				_parsed = 0f;
 				return false;
 			}
@@ -346,23 +341,6 @@ namespace Stumblr
 				Mark("ragdoll", Settings.ZombieMode == ZombieReaction.Ragdoll));
 		}
 
-		private static string ChanceLine()
-		{
-			return TripChance.Percent(Settings.PlayerChance) + " player / "
-				+ TripChance.Percent(Settings.ZombieChance) + " zombie";
-		}
-
-		private static string CatchLine()
-		{
-			return TripChance.Percent(Settings.ZombieCatchPercent)
-				+ " of zombie trips caught before the jump, rest on landing";
-		}
-
-		private static string FloorLine()
-		{
-			return "Athletics cuts the player to " + TripChance.Percent(Settings.PlayerChanceFloor);
-		}
-
 		private static void Output(string _line)
 		{
 			SdtdConsole.Instance.Output(_line);
@@ -380,53 +358,43 @@ namespace Stumblr
 
 		public override string getHelp()
 		{
-			return "Usage: sb [chance {p} {z}|floor {p}|ground {n}|hurt|shake|jolt|catch {pct}"
-				+ "|zombie|blocks|add {pattern}|drop {pattern}|info|reset]"
-				+ "\r\n\r\nJumping a fence, a railing or a guardrail carries a small chance of "
-				+ "catching a foot on it. A zombie goes down in one of the game's own stumble "
-				+ "animations. The player always clears the obstacle and only lands badly - a grunt "
-				+ "and a jolt of the view, and nothing else at all: no damage, no stamina, no buff, "
-				+ "no loss of speed, control or aim. Anything more than that means death with a "
-				+ "horde behind you, which is the point.\r\n\r\n'sb' on its own toggles the mod and "
-				+ "prints the settings. Each line names the command that changes it, so the settings "
-				+ "block is the menu.\r\n\r\n'sb chance {p} {z}' sets the percentage chance for the "
-				+ "player and for zombies, 1.0 and 2.0 by default. The player's is the chance at "
-				+ "Athletics level 1.\r\n\r\n'sb floor {p}' sets what Athletics can reduce the "
-				+ "player's chance to at the perk's cap, 0.1% by default - a tenfold reduction that "
-				+ "never quite reaches zero. The curve between the two is a straight line. Athletics "
-				+ "is an Undead Legacy perk; without UL the mod falls back to vanilla's perkParkour, "
-				+ "and with neither the chance is not scaled. 'sb info' shows which one was found."
-				+ "\r\n\r\n'sb ground {n}' limits trips to within n blocks of ground level, 3 by "
-				+ "default, measured against the terrain height rather than whatever is built on it. "
-				+ "This keeps trips to yard fences and away from rooftop catwalks, where a stumble is "
-				+ "both more punishing and less plausible. 0 leaves only entities standing exactly "
-				+ "at terrain height, which is as good as off.\r\n\r\n"
-				+ "'sb hurt' toggles the grunt, which is your own character's SoundHurtSmall - so "
-				+ "nothing is bundled and the voice always matches the character. Unlike Door Slammer "
-				+ "and Fletch Wounds this sound is audible to zombies, exactly as taking a hit is."
-				+ "\r\n\r\n'sb shake' toggles the lurch: the horizon tips and rights itself, on the "
-				+ "same roll spring an explosion uses. It is roll only, so it does not move your "
-				+ "aim.\r\n\r\n'sb jolt' toggles a kick to your held item and hands, on the spring "
-				+ "gun recoil drives. It exists because the lurch and the jolt fail differently - "
-				+ "nothing that affects the camera can touch the jolt - and either alone is easy to "
-				+ "miss while sprinting.\r\n\r\n'sb catch {pct}' splits zombie trips between the "
-				+ "two sides of the obstacle: caught before the jump, so they never leave the "
-				+ "ground, or allowed over and taken down on the landing. 50 by default, an even "
-				+ "mix - all-near looks like an invisible wall, all-far like the fence never "
-				+ "troubled them.\r\n\r\n'sb zombie' cycles what a tripping zombie does: off, "
-				+ "stumble (it staggers and recovers) or ragdoll (it goes down properly). Both are "
-				+ "the game's own reactions, and neither deals damage nor triggers rage.\r\n\r\n"
-				+ "'sb blocks' prints the block-name substrings that count as trippable, and 'sb add' "
-				+ "and 'sb drop' edit them. Matching is on the name because the game ships no fence "
-				+ "or railing tag to match on instead.\r\n\r\nAll of these take effect immediately "
-				+ "and last until the game is restarted; the defaults live in Settings.cs.\r\n\r\n"
-				+ "'sb info' prints the same block with the patch state and the counters added. There "
-				+ "is one counter per gate, in the order they are checked, because a trip is rare by "
-				+ "design and not seeing one proves nothing - the stage where the numbers stop moving "
-				+ "names the setting to change. Jumps but nothing near ground means the band is too "
-				+ "tight; near ground but nothing over a fence means the block list is missing the "
-				+ "fence you are standing at.\r\n\r\n'sb reset' zeroes the counters so one scenario "
-				+ "can be measured on its own.\r\n\r\n'stumblr' is an alias for 'sb'.";
+			return "Usage: sb [chance {mult}|window {s}|narrow {w} {h}|ground {n}|zombie|blocks"
+				+ "|add {pattern}|drop {pattern}|probe|info|reset]"
+				+ "\r\n\r\nA zombie that has just scrambled onto a fence, a railing, a pole or any "
+				+ "other narrow block has not found its balance yet. Hit it in the leg in that moment "
+				+ "and it can go down in one of the game's own stumble animations. The chance is the "
+				+ "swing's own dismember chance times a multiplier, so it grows with the weapon skill "
+				+ "Undead Legacy levels by use - Clubs, Blades, Sledgehammers, Brawler and so on."
+				+ "\r\n\r\n'sb' on its own toggles the mod and prints the settings. Each line names "
+				+ "the command that changes it, so the settings block is the menu.\r\n\r\n"
+				+ "'sb chance {mult}' sets the multiplier on the swing's dismember chance, 2 by "
+				+ "default. Under UL a weapon skill of 1 gives 0.25% dismember, 100 gives 25%, so x2 "
+				+ "runs from one trip in two hundred leg hits to one in two.\r\n\r\n"
+				+ "'sb window {s}' sets how close to a zombie's landing a leg hit has to be, half a "
+				+ "second either side by default. A hit while it is still in the air is held and "
+				+ "judged when it comes down, on whatever it lands on. 0 drops the check, so any "
+				+ "zombie standing on a narrow block can be tripped.\r\n\r\n'sb narrow {w} {h}' sets what counts as narrow: the "
+				+ "thinner horizontal extent of the block's bounding box at most w blocks wide, and "
+				+ "the box at least h tall. 0.4 and 0.5 by default. Every shape's box is measured "
+				+ "from its model when the game loads; 'sb probe' shows the numbers for the block "
+				+ "under your crosshair, with the verdict and the reason.\r\n\r\n'sb ground {n}' "
+				+ "limits trips to within n blocks of ground level, 3 by default, measured against the "
+				+ "terrain height rather than whatever is built on it. This keeps trips to yard "
+				+ "fences and away from rooftop catwalks, where a stumble is both more punishing and "
+				+ "less plausible.\r\n\r\n'sb zombie' cycles what a tripping zombie does: off, stumble "
+				+ "(it staggers and recovers) or ragdoll (it goes down properly). Both are the game's "
+				+ "own reactions, and neither deals damage nor triggers rage.\r\n\r\n'sb blocks' "
+				+ "prints the name overrides: substrings of a block or shape name that count as "
+				+ "narrow regardless of their box, like a hedge, and ones that never count, like a "
+				+ "fence door. 'sb add' and 'sb drop' edit the first list.\r\n\r\nAll of these take "
+				+ "effect immediately and last until the game is restarted; the defaults live in "
+				+ "Settings.cs.\r\n\r\n'sb info' prints the same block with the patch state and the "
+				+ "counters added. There is one counter per gate, in the order they are checked: leg "
+				+ "hits but none in the air or after landing means you were too slow or the zombie "
+				+ "walked up rather than jumped; in the window but none on a narrow block means the "
+				+ "block is not measuring narrow - probe it. 'last footing' says what the mod saw under the "
+				+ "zombie on the most recent check.\r\n\r\n'sb reset' zeroes the counters so one "
+				+ "scenario can be measured on its own.\r\n\r\n'stumblr' is an alias for 'sb'.";
 		}
 	}
 }

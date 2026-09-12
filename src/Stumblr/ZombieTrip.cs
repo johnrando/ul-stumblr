@@ -1,7 +1,7 @@
 namespace Stumblr
 {
 	/// <summary>
-	/// What a caught zombie does.
+	/// What a tripped zombie does.
 	///
 	/// Nothing here is invented. Both reactions are lifted from
 	/// <c>EntityHuman.ExecuteDestroyBlockBehavior</c> - the game's own "tripped while breaking
@@ -90,14 +90,14 @@ namespace Stumblr
 			switch (Settings.ZombieMode)
 			{
 			case ZombieReaction.Stumble:
-				return "Zombies STUMBLE - caught on the fence, staggered for "
+				return "Zombies STUMBLE - legs taken out from under them, staggered for "
 					+ Settings.ZombieStunSeconds + "s, back on their feet. The game's own "
 					+ "StumbleBreakThrough reaction.";
 			case ZombieReaction.Ragdoll:
-				return "Zombies RAGDOLL - caught on the fence and knocked down properly. The game's "
-					+ "own StumbleBreakThroughRagdoll reaction; it ends when the body settles.";
+				return "Zombies RAGDOLL - knocked clean off their perch. The game's own "
+					+ "StumbleBreakThroughRagdoll reaction; it ends when the body settles.";
 			default:
-				return "Zombie trips OFF - zombies clear fences exactly as vanilla lets them.";
+				return "Zombie trips OFF - a leg hit is just a leg hit.";
 			}
 		}
 	}
