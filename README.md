@@ -67,12 +67,12 @@ the fence in front of you counts, and how to tune `sb narrow` if it doesn't.
 **A zombie goes down.** Each trip draws one of five reactions from a weighted table, and every one
 is an animation the game already plays on every zombie rig:
 
-- `stumble` — the break-through stagger. It lurches forward and recovers on its feet after a second.
-- `ragdoll` — the same lurch carried through to the floor, ending when the body settles.
-- `kneel` — the knockdown to one knee a heavy hit deals, to a random side or backward.
-- `prone` — the knockdown flat, likewise to a random side or backward, for the zombie's own
+- `stumble` â€” the break-through stagger. It lurches forward and recovers on its feet after a second.
+- `ragdoll` â€” the same lurch carried through to the floor, ending when the body settles.
+- `kneel` â€” the knockdown to one knee a heavy hit deals, to a random side or backward.
+- `prone` â€” the knockdown flat, likewise to a random side or backward, for the zombie's own
   knockdown duration from entityclasses.xml (half a second to nearly two, for vanilla zombies).
-- `shove` — a physics ragdoll with an impulse, backward along the zombie's facing with a random
+- `shove` â€” a physics ragdoll with an impulse, backward along the zombie's facing with a random
   lean. It is the push a critical bashing hit gives; `sb shove {force}` sets how hard, and the game
   caps it at eight times the zombie's mass.
 
@@ -166,14 +166,14 @@ sets one kind; 0 for either number switches that kind off.
 
 | Kind | What it is | Default |
 |---|---|---|
-| `small` | the donut spare: `decoCarTireSmallFlat` and UL's `_S` tires | ×0.75, one zombie |
-| `single` | one full-size tire lying flat | ×1, two zombies |
-| `pile` | a heap: `decoCarTirePile`, two blocks wide, both armed; UL's `Tires2` | ×1.5, three zombies |
+| `small` | the donut spare: `decoCarTireSmallFlat` and UL's `_S` tires | Ã—0.75, one zombie |
+| `single` | one full-size tire lying flat | Ã—1, two zombies |
+| `pile` | a heap: `decoCarTirePile`, two blocks wide, both armed; UL's `Tires2` | Ã—1.5, three zombies |
 | `stack` | a vertical column: `decoCarTireStack`, UL's two-block-tall `Tires4` | off |
 
 The small flat tire is the only one **zombies walk through**, so their feet share its block and it
 fires as they pass. The full-size tire and the pile are solid: a zombie walks around one, or steps
-up onto it when it is in its path — and the block under its feet is then the tire, which is the
+up onto it when it is in its path â€” and the block under its feet is then the tire, which is the
 other way in. Put a solid one where the zombie has to go over it.
 
 Any block whose name contains `tire` counts, which covers every vanilla and UL tire. **Under Undead
@@ -244,7 +244,7 @@ back the defaults below (which live in `Settings.cs`).
 | zombie stun | 1 s (stumble only) |
 | arrow chance multiplier | Ã—2 on the shot's dismember chance |
 | tire armed for / trip chance | 5 s / 50% |
-| tire kinds: chance multiplier / zombies per tire | small ×0.75 / 1, single ×1 / 2, pile ×1.5 / 3, stack off |
+| tire kinds: chance multiplier / zombies per tire | small Ã—0.75 / 1, single Ã—1 / 2, pile Ã—1.5 / 3, stack off |
 | door trip chance | 50% |
 | enhanced mod interaction | on |
 
