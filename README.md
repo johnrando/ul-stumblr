@@ -19,7 +19,8 @@ obtainable through UL's pick-up. Tested against **UL 2.7.15 - 2.7.32**.
 
 ## Installing
 
-Build (below), then copy the staged `dist/Stumblr/` into the game's `Mods/`:
+Download the zip from Releases and extract it into the game's `Mods/`. The mod folder is the root
+of the archive, so it lands as:
 
 ```
 Mods/Stumblr/
@@ -268,7 +269,14 @@ install, against the game's own assemblies.
 dotnet build src/Stumblr/Stumblr.csproj -c Release
 ```
 
-That stages a ready-to-copy `dist/Stumblr/`, which is not tracked by git.
+That restages `dist/Stumblr/`, ready to copy into `Mods/`. To also build the release archive:
+
+```
+dotnet build src/Stumblr/Stumblr.csproj -c Release -t:Package
+```
+
+That writes `release/Stumblr-v<version>-<date>.zip`, taking the version from `ModInfo.xml`.
+Neither `dist/` nor `release/` is tracked - the zip is published as a Release instead.
 
 ## License
 
