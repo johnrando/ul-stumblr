@@ -2,19 +2,6 @@ using System.Collections.Generic;
 
 namespace Stumblr
 {
-	/// <summary>Which reaction a tripped zombie plays, if any.</summary>
-	internal enum ZombieReaction
-	{
-		/// <summary>Nothing. A leg hit is just a leg hit.</summary>
-		Off,
-
-		/// <summary>The game's own StumbleBreakThrough - it staggers and recovers on its feet.</summary>
-		Stumble,
-
-		/// <summary>The game's own StumbleBreakThroughRagdoll - it goes down properly.</summary>
-		Ragdoll
-	}
-
 	/// <summary>
 	/// Runtime knobs, all switchable from the <c>sb</c> console command. The values here are the
 	/// built-in defaults; <see cref="Config"/> reads the player's file over them at startup and
@@ -64,8 +51,30 @@ namespace Stumblr
 		/// </summary>
 		internal static int GroundBand = 3;
 
-		/// <summary>What a tripping zombie does, whatever tripped it. Cycled with <c>sb zombie</c>.</summary>
-		internal static ZombieReaction ZombieMode = ZombieReaction.Stumble;
+		/// <summary>
+		/// What a tripping zombie does, whatever tripped it: one reaction drawn from this weighted
+		/// table, set with <c>sb zombie</c>. A weight of 0 takes a reaction out; all five at 0 is
+		/// off. The break-through pair - stumble and ragdoll - always lurch forward, which is
+		/// toward the player; the other three go down sideways or backward, so they carry the
+		/// weight by default. See <see cref="ZombieTrip"/>.
+		/// </summary>
+		internal static float WeightStumble = 1f;
+
+		internal static float WeightKneel = 1f;
+
+		internal static float WeightProne = 2f;
+
+		internal static float WeightRagdoll = 1f;
+
+		internal static float WeightShove = 2f;
+
+		/// <summary>
+		/// The impulse behind a shove, in the units <c>Rigidbody.AddForce</c> takes for an impulse.
+		/// Vanilla gives a knockdown hit 20 plus half its damage, and clamps at eight times the
+		/// zombie's mass; 60 is a solid push without looking like a sledgehammer. 0 turns a shove
+		/// into a prone fall.
+		/// </summary>
+		internal static float ShoveForce = 60f;
 
 		/// <summary>
 		/// Seconds a stumbling zombie stays stunned. 1 second is vanilla's own value for this
@@ -88,18 +97,65 @@ namespace Stumblr
 		internal static float TireSeconds = 5f;
 
 		/// <summary>Chance, 0 to 1, that a zombie stepping into a live tire trips. Rolled once per
-		/// zombie per tire.</summary>
+		/// zombie per tire, times the kind's multiplier below.</summary>
 		internal static float TireChance = 0.5f;
 
 		/// <summary>
+		/// Per kind of tire: a multiplier on <see cref="TireChance"/> and how many zombies one tire
+		/// can trip before it is spent. A donut spare is a smaller target and a lighter fall; a
+		/// heap of three is a bigger one and can take more than one zombie down. A vertical stack
+		/// is a wall, not a hazard, so it is off. Set with <c>sb tires</c>; see <see cref="TripHazards"/>.
+		/// </summary>
+		internal static TireRule TireSmall = new TireRule(0.75f, 1);
+
+		internal static TireRule TireSingle = new TireRule(1f, 2);
+
+		internal static TireRule TirePile = new TireRule(1.5f, 3);
+
+		internal static TireRule TireStack = new TireRule(0f, 0);
+
+		internal static TireRule TireRule(TireKind _kind)
+		{
+			switch (_kind)
+			{
+			case TireKind.Small:
+				return TireSmall;
+			case TireKind.Pile:
+				return TirePile;
+			case TireKind.Stack:
+				return TireStack;
+			default:
+				return TireSingle;
+			}
+		}
+
+		internal static void SetTireRule(TireKind _kind, TireRule _rule)
+		{
+			switch (_kind)
+			{
+			case TireKind.Small:
+				TireSmall = _rule;
+				break;
+			case TireKind.Pile:
+				TirePile = _rule;
+				break;
+			case TireKind.Stack:
+				TireStack = _rule;
+				break;
+			default:
+				TireSingle = _rule;
+				break;
+			}
+		}
+
+		/// <summary>
 		/// Chance, 0 to 1, that a zombie caught in a slammed door trips. Only reachable through
-		/// DoorSlammer with flavor on in both mods. 0 switches it off. See <see cref="DoorSlamInterop"/>.
+		/// DoorSlammer with flavor on in both mods. 0 switches it off. See <see cref="FlavorInterop"/>.
 		/// </summary>
 		internal static float DoorChance = 0.5f;
 
-		/// <summary>Take part in the extra behaviour supported mods offer. Does nothing unless one
-		/// is installed. Currently DoorSlammer; both mods carry this switch and both must be on.</summary>
-		internal static bool Flavor = true;
+		// The per-partner flavor switches live in FlavorSwitches: one per mod this one links up
+		// with, all on by default, and mirrored pairwise rather than as one shared value.
 
 		/// <summary>
 		/// Case-insensitive substrings of a block's name that make it a trip hazard when a player

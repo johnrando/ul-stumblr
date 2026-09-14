@@ -78,7 +78,7 @@ namespace Stumblr
 
 		/// <summary>
 		/// Writes the whole file, which is what keeps the comments and ordering intact. Called by
-		/// every <c>sb</c> command that changes a setting and by <see cref="DoorSlamInterop.SetFlavor"/>.
+		/// every <c>sb</c> command that changes a setting and by <see cref="FlavorInterop.SetFlavor"/>.
 		/// </summary>
 		internal static void Save()
 		{
@@ -139,19 +139,28 @@ namespace Stumblr
 			text.AppendLine("# sets it; anything after a '#' is a comment, and a line that will not parse is");
 			text.AppendLine("# ignored rather than fatal. Chances are percentages.");
 			text.AppendLine();
-			Setting(text, "enabled", OnOff(Settings.Enabled), "sb");
+			Setting(text, "enabled", OnOff(Settings.Enabled), "sb on|off");
 			Setting(text, "chance", Number(Settings.ChanceMultiplier), "sb chance {mult}");
 			Setting(text, "window", Number(Settings.WindowSeconds), "sb window {s}");
 			Setting(text, "narrow.width", Number(Settings.NarrowWidth), "sb narrow {w} {h}");
 			Setting(text, "narrow.height", Number(Settings.NarrowMinHeight), "sb narrow {w} {h}");
 			Setting(text, "ground", Settings.GroundBand.ToString(), "sb ground {n}");
-			Setting(text, "zombie", ZombieTrip.Status(), "sb zombie - off, stumble or ragdoll");
+			Setting(text, "zombie", ZombieTrip.Weights(), "sb zombie {stumble} {kneel} {prone} {ragdoll} {shove} - weights");
+			Setting(text, "shove.force", Number(Settings.ShoveForce), "sb shove {force}");
 			Setting(text, "stun", Number(Settings.ZombieStunSeconds), "stumble stun seconds (no command)");
 			Setting(text, "arrow", Number(Settings.ArrowMultiplier), "sb arrow {mult}");
 			Setting(text, "tire.seconds", Number(Settings.TireSeconds), "sb tire {s} {pct}");
 			Setting(text, "tire.chance", Number(Settings.TireChance * 100f), "sb tire {s} {pct}");
+			Setting(text, "tire.small", TripHazards.RuleValue(TireKind.Small), "sb tires small {x} {n} - chance multiplier, zombies per tire");
+			Setting(text, "tire.single", TripHazards.RuleValue(TireKind.Single), "sb tires single {x} {n}");
+			Setting(text, "tire.pile", TripHazards.RuleValue(TireKind.Pile), "sb tires pile {x} {n}");
+			Setting(text, "tire.stack", TripHazards.RuleValue(TireKind.Stack), "sb tires stack {x} {n}");
 			Setting(text, "door.chance", Number(Settings.DoorChance * 100f), "sb door {pct}");
-			Setting(text, "flavor", OnOff(Settings.Flavor), "sb flavor");
+			foreach (string label in FlavorSwitches.Labels)
+			{
+				Setting(text, "flavor." + label.ToLowerInvariant(), OnOff(FlavorSwitches.IsOn(label)),
+					"sb flavor " + FlavorPartners.AliasOf(label));
+			}
 			Setting(text, "include", string.Join(",", Settings.Include.ToArray()), "sb add / sb drop");
 			return text.ToString();
 		}
@@ -159,7 +168,7 @@ namespace Stumblr
 		/// <summary>One setting, padded so the values and the commands each share a column.</summary>
 		private static void Setting(StringBuilder _text, string _key, string _value, string _command)
 		{
-			_text.AppendLine(_key.PadRight(14) + "= " + _value.PadRight(8) + " # " + _command);
+			_text.AppendLine(_key.PadRight(19) + "= " + _value.PadRight(8) + " # " + _command);
 		}
 
 		private enum LineResult
@@ -223,6 +232,8 @@ namespace Stumblr
 				return LoadCount(_value, ref Settings.GroundBand);
 			case "zombie":
 				return TryZombie(_value);
+			case "shove.force":
+				return LoadMeasure(_value, ref Settings.ShoveForce);
 			case "stun":
 				return LoadMeasure(_value, ref Settings.ZombieStunSeconds);
 			case "arrow":
@@ -231,15 +242,46 @@ namespace Stumblr
 				return LoadMeasure(_value, ref Settings.TireSeconds);
 			case "tire.chance":
 				return LoadPercent(_value, ref Settings.TireChance);
+			case "tire.small":
+				return LoadTireRule(TireKind.Small, _value);
+			case "tire.single":
+				return LoadTireRule(TireKind.Single, _value);
+			case "tire.pile":
+				return LoadTireRule(TireKind.Pile, _value);
+			case "tire.stack":
+				return LoadTireRule(TireKind.Stack, _value);
 			case "door.chance":
 				return LoadPercent(_value, ref Settings.DoorChance);
 			case "flavor":
-				return TryBool(_value, ref Settings.Flavor);
+				// The single switch older builds wrote: apply it to every partner.
+				return TryFlavor(null, _value);
 			case "include":
 				return LoadList(_value, Settings.Include);
 			default:
+				// flavor.<mod>: one partner's switch. Any label is accepted, so a switch a mod
+				// this build does not know about created is kept.
+				return _key.StartsWith("flavor.") && _key.Length > 7
+					&& TryFlavor(_key.Substring(7), _value);
+			}
+		}
+
+		/// <summary>One partner's switch, or every partner's when the label is null.</summary>
+		private static bool TryFlavor(string _label, string _value)
+		{
+			bool on = false;
+			if (!TryBool(_value, ref on))
+			{
 				return false;
 			}
+			if (_label == null)
+			{
+				FlavorSwitches.SetAll(on);
+			}
+			else
+			{
+				FlavorSwitches.Set(_label, on);
+			}
+			return true;
 		}
 
 		/// <summary>Accepts what the file writes plus the obvious hand-edit synonyms.</summary>
@@ -264,22 +306,84 @@ namespace Stumblr
 			}
 		}
 
+		/// <summary>
+		/// Five weights, or one of the words a file from before the table wrote: "stumble" and
+		/// "ragdoll" become a table with only that reaction in it, "off" all zeros.
+		/// </summary>
 		private static bool TryZombie(string _value)
 		{
 			switch (_value.ToLowerInvariant())
 			{
 			case "off":
-				Settings.ZombieMode = ZombieReaction.Off;
+				SetWeights(0f, 0f, 0f, 0f, 0f);
 				return true;
 			case "stumble":
-				Settings.ZombieMode = ZombieReaction.Stumble;
+				SetWeights(1f, 0f, 0f, 0f, 0f);
 				return true;
 			case "ragdoll":
-				Settings.ZombieMode = ZombieReaction.Ragdoll;
+				SetWeights(0f, 0f, 0f, 1f, 0f);
 				return true;
-			default:
+			}
+
+			if (!TryWeights(_value.Split(new[] { ' ', ',' }, System.StringSplitOptions.RemoveEmptyEntries),
+				out float[] weights))
+			{
 				return false;
 			}
+			SetWeights(weights[0], weights[1], weights[2], weights[3], weights[4]);
+			return true;
+		}
+
+		/// <summary>Five non-negative numbers. Shared with the console command.</summary>
+		internal static bool TryWeights(string[] _values, out float[] _weights)
+		{
+			_weights = new float[5];
+			if (_values.Length != 5)
+			{
+				return false;
+			}
+			for (int i = 0; i < 5; i++)
+			{
+				if (!TryMeasure(_values[i], out _weights[i]) || _weights[i] > 1000f)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
+		internal static void SetWeights(float _stumble, float _kneel, float _prone, float _ragdoll, float _shove)
+		{
+			Settings.WeightStumble = _stumble;
+			Settings.WeightKneel = _kneel;
+			Settings.WeightProne = _prone;
+			Settings.WeightRagdoll = _ragdoll;
+			Settings.WeightShove = _shove;
+		}
+
+		/// <summary>A multiplier and a count, space or comma separated.</summary>
+		private static bool LoadTireRule(TireKind _kind, string _value)
+		{
+			string[] parts = _value.Split(new[] { ' ', ',' }, System.StringSplitOptions.RemoveEmptyEntries);
+			if (parts.Length != 2 || !TryTireRule(parts[0], parts[1], out TireRule rule))
+			{
+				return false;
+			}
+			Settings.SetTireRule(_kind, rule);
+			return true;
+		}
+
+		/// <summary>Shared with the console command.</summary>
+		internal static bool TryTireRule(string _multiplier, string _count, out TireRule _rule)
+		{
+			_rule = default(TireRule);
+			if (!TryMeasure(_multiplier, out float multiplier) || multiplier > 100f
+				|| !TryCount(_count, out int count) || count > 1000)
+			{
+				return false;
+			}
+			_rule = new TireRule(multiplier, count);
+			return true;
 		}
 
 		/// <summary>Whole numbers, zero or more. Shared with the console command.</summary>

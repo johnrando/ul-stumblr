@@ -31,21 +31,24 @@ Load order does not matter.
 
 ## Console commands
 
-`sb` toggles the mod and prints the menu â€” `stumblr` is an alias. Every line names the command that
-changes it, so the menu is also the reference:
+`sb` prints the menu and changes nothing â€” `stumblr` is an alias. `sb on` and `sb off` are the
+master switch. Every line names the command that changes it, so the menu is also the reference:
 
 ```
-Stumblr is now ON
-  sb chance {mult}  : perch trip chance = swing's dismember chance x2
-  sb window {s}     : leg hit within 0.5s either side of landing
-  sb narrow {w} {h} : thinner than 0.4 wide, at least 0.5 tall
-  sb ground {n}     : only within 3 blocks of ground level
-  sb zombie         : [ off | >stumble< | ragdoll ]
-  sb arrow {mult}   : arrow to a running zombie's leg trips at dismember chance x2
-  sb tire {s} {pct} : a placed tire trips 50% of zombies stepping in for 5s
-  sb door {pct}     : a door slammed on a zombie trips it 50% of the time
-  sb flavor         : [ >on< | off ] - enhanced mod interaction with DoorSlammer
-  sb blocks         : 11 name overrides, 3 of 9 blocks seen were narrow
+Stumblr is ON
+  sb on|off           : [ >on< | off ] - take a zombie's legs out from under it
+  sb chance {mult}    : perch trip chance = swing's dismember chance x2
+  sb window {s}       : leg hit within 0.5s either side of landing
+  sb narrow {w} {h}   : thinner than 0.4 wide, at least 0.5 tall
+  sb ground {n}       : only within 3 blocks of ground level
+  sb zombie {weights} : stumble 14% kneel 14% prone 29% ragdoll 14% shove 29%
+  sb shove {force}    : impulse 60, backward with a random lean
+  sb arrow {mult}     : arrow to a running zombie's leg trips at dismember chance x2
+  sb tire {s} {pct}   : a placed tire trips 50% of zombies stepping in for 5s
+  sb tires {k} {x} {n} : small x0.75 up to 1, single x1 up to 2, pile x1.5 up to 3, stack off
+  sb door {pct}       : a door slammed on a zombie trips it 50% of the time
+  sb flavor ds        : [ >on< | off ] - DoorSlammer: a slammed door can trip the zombie
+  sb blocks           : 11 name overrides, 3 of 9 blocks seen were narrow
 ```
 
 `sb blocks` prints the name overrides in full; `sb add` and `sb drop` edit them. A setter called
@@ -60,10 +63,23 @@ the fence in front of you counts, and how to tune `sb narrow` if it doesn't.
 
 ## What a trip does
 
-**A zombie goes down.** It plays one of the game's own reactions: `stumble` staggers it for a
-second, `ragdoll` knocks it over. `sb zombie` picks which, for every trigger at once. Neither deals
-damage, grants XP, sets a revenge target or triggers rage. Being knocked off a fence is, of course,
-its own consequence.
+**A zombie goes down.** Each trip draws one of five reactions from a weighted table, and every one
+is an animation the game already plays on every zombie rig:
+
+- `stumble` — the break-through stagger. It lurches forward and recovers on its feet after a second.
+- `ragdoll` — the same lurch carried through to the floor, ending when the body settles.
+- `kneel` — the knockdown to one knee a heavy hit deals, to a random side or backward.
+- `prone` — the knockdown flat, likewise to a random side or backward, for the zombie's own
+  knockdown duration from entityclasses.xml (half a second to nearly two, for vanilla zombies).
+- `shove` — a physics ragdoll with an impulse, backward along the zombie's facing with a random
+  lean. It is the push a critical bashing hit gives; `sb shove {force}` sets how hard, and the game
+  caps it at eight times the zombie's mass.
+
+`sb zombie {stumble} {kneel} {prone} {ragdoll} {shove}` sets the weights, for every trigger at once;
+a weight of 0 leaves a reaction out, and `sb zombie off` zeroes them all. The two break-through
+reactions always fall *toward* the player, which on a flat floor is almost a favour to the zombie,
+so the defaults lean on the other three. None deals damage, grants XP, sets a revenge target or
+triggers rage. Being knocked off a fence is, of course, its own consequence.
 
 **Crawlers, corpses and zombies already stunned are never tripped**, whatever the trigger, matching
 the game's own stumble path, which has nothing to play for a rig already on the floor.
@@ -143,9 +159,21 @@ park say nobody. Picking a tire back up, or its destruction, disarms it. One rol
 tire, so a zombie standing in one is not re-rolled every tick. There is no requirement that the
 zombie be moving: dropping a tire at a zombie's feet is the intended throw.
 
-The tire that works is the **small flat one** (`decoCarTireSmallFlat` and its ground-aligned twin):
-zombies walk through it, so their feet share its block. The larger tires and piles are solid and
-get walked around; they arm harmlessly.
+**Which tire matters.** Every tire is one of four kinds, each with its own multiplier on the chance
+and its own cap on how many zombies one tire can trip before it is spent. `sb tires {kind} {x} {n}`
+sets one kind; 0 for either number switches that kind off.
+
+| Kind | What it is | Default |
+|---|---|---|
+| `small` | the donut spare: `decoCarTireSmallFlat` and UL's `_S` tires | ×0.75, one zombie |
+| `single` | one full-size tire lying flat | ×1, two zombies |
+| `pile` | a heap: `decoCarTirePile`, two blocks wide, both armed; UL's `Tires2` | ×1.5, three zombies |
+| `stack` | a vertical column: `decoCarTireStack`, UL's two-block-tall `Tires4` | off |
+
+The small flat tire is the only one **zombies walk through**, so their feet share its block and it
+fires as they pass. The full-size tire and the pile are solid: a zombie walks around one, or steps
+up onto it when it is in its path — and the block under its feet is then the tire, which is the
+other way in. Put a solid one where the zombie has to go over it.
 
 Any block whose name contains `tire` counts, which covers every vanilla and UL tire. **Under Undead
 Legacy every tire can be picked up**: UL gives them its `ULM_Decor` class, which is pickable by
@@ -153,12 +181,14 @@ default. Vanilla without UL has no way to obtain one, so the rule is never reach
 
 ## The door
 
-With **DoorSlammer** installed and `sb flavor` on in both mods, a zombie caught in a slammed door
+With **DoorSlammer** installed and the pair's flavor switch on, a zombie caught in a slammed door
 is handed over and trips half the time. `sb door {pct}` sets the chance; 0 switches it off. The
 slam's own damage still lands, and if FletchWounds is also installed its arrow proc runs first.
 
-Neither mod references the other; each notices whether the other is there. DoorSlammer is the hub
-for the shared flavor switch: **toggling it in any of the linked mods moves all of them**.
+Neither mod references the other; each notices whether the other is there. The flavor switch is
+a pair: `sb flavor ds` and `ds flavor sb` are the same switch, toggling either sets both sides,
+and nothing else moves, so DoorSlammer's interaction with FletchWounds is unaffected. `sb flavor`
+alone lists the switches; `sb flavor on|off` sets them all.
 
 ## Settings file
 
@@ -175,20 +205,25 @@ or write worked.
 It is plain `key = value` text, one line per setting, each naming the command that sets it:
 
 ```
-enabled       = on       # sb
-chance        = 2        # sb chance {mult}
-window        = 0.5      # sb window {s}
-narrow.width  = 0.4      # sb narrow {w} {h}
-narrow.height = 0.5      # sb narrow {w} {h}
-ground        = 3        # sb ground {n}
-zombie        = stumble  # sb zombie - off, stumble or ragdoll
-stun          = 1        # stumble stun seconds (no command)
-arrow         = 2        # sb arrow {mult}
-tire.seconds  = 5        # sb tire {s} {pct}
-tire.chance   = 50       # sb tire {s} {pct}
-door.chance   = 50       # sb door {pct}
-flavor        = on       # sb flavor
-include       = fence,railing,...  # sb add / sb drop
+enabled            = on       # sb on|off
+chance             = 2        # sb chance {mult}
+window             = 0.5      # sb window {s}
+narrow.width       = 0.4      # sb narrow {w} {h}
+narrow.height      = 0.5      # sb narrow {w} {h}
+ground             = 3        # sb ground {n}
+zombie             = 1 1 2 1 2 # sb zombie {stumble} {kneel} {prone} {ragdoll} {shove} - weights
+shove.force        = 60       # sb shove {force}
+stun               = 1        # stumble stun seconds (no command)
+arrow              = 2        # sb arrow {mult}
+tire.seconds       = 5        # sb tire {s} {pct}
+tire.chance        = 50       # sb tire {s} {pct}
+tire.small         = 0.75 1   # sb tires small {x} {n} - chance multiplier, zombies per tire
+tire.single        = 1 2      # sb tires single {x} {n}
+tire.pile          = 1.5 3    # sb tires pile {x} {n}
+tire.stack         = 0 0      # sb tires stack {x} {n}
+door.chance        = 50       # sb door {pct}
+flavor.doorslammer = on       # sb flavor ds
+include            = fence,railing,...  # sb add / sb drop
 ```
 
 Edit it by hand with the game closed â€” it is rewritten whenever an `sb` command changes something.
@@ -203,10 +238,12 @@ back the defaults below (which live in `Settings.cs`).
 | window either side of landing | 0.5 s |
 | narrow width / min height | 0.4 / 0.5 blocks |
 | ground band | 3 blocks |
-| zombie reaction | stumble |
-| zombie stun | 1 s |
+| zombie reaction weights | stumble 1, kneel 1, prone 2, ragdoll 1, shove 2 |
+| shove impulse | 60 |
+| zombie stun | 1 s (stumble only) |
 | arrow chance multiplier | Ã—2 on the shot's dismember chance |
 | tire armed for / trip chance | 5 s / 50% |
+| tire kinds: chance multiplier / zombies per tire | small ×0.75 / 1, single ×1 / 2, pile ×1.5 / 3, stack off |
 | door trip chance | 50% |
 | enhanced mod interaction | on |
 

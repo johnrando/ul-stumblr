@@ -3,7 +3,8 @@ using System.Collections.Generic;
 namespace Stumblr
 {
 	/// <summary>
-	/// <c>sb</c> (or <c>stumblr</c>) - toggles the mod and prints the settings block.
+	/// <c>sb</c> (or <c>stumblr</c>). The bare command prints the settings block and changes
+	/// nothing; <c>sb on</c> and <c>sb off</c> are the master switch.
 	///
 	/// The settings block doubles as the menu: every line names the command that changes it, and
 	/// shows what that command left behind. The toggles list their choices with the live one marked,
@@ -28,9 +29,12 @@ namespace Stumblr
 			switch (command)
 			{
 			case "":
-				Settings.Enabled = !Settings.Enabled;
-				Config.Save();
-				OutputStatus();
+				OutputMenu("Stumblr is " + OnOff(Settings.Enabled));
+				return;
+
+			case "on":
+			case "off":
+				SetEnabled(command == "on");
 				return;
 
 			case "chance":
@@ -50,9 +54,11 @@ namespace Stumblr
 				return;
 
 			case "zombie":
-				ZombieTrip.Cycle();
-				Config.Save();
-				Output(ZombieTrip.Describe());
+				SetZombie(_params);
+				return;
+
+			case "shove":
+				SetShove(_params);
 				return;
 
 			case "arrow":
@@ -63,15 +69,16 @@ namespace Stumblr
 				SetTire(_params);
 				return;
 
+			case "tires":
+				SetTires(_params);
+				return;
+
 			case "door":
 				SetDoor(_params);
 				return;
 
 			case "flavor":
-				Settings.Flavor = !Settings.Flavor;
-				Config.Save();
-				DoorSlamInterop.PushFlavor(Settings.Flavor);
-				Output(DoorSlamInterop.Describe());
+				SetFlavor(_params);
 				return;
 
 			case "blocks":
@@ -101,42 +108,122 @@ namespace Stumblr
 
 			default:
 				Output("Unknown option '" + _params[0]
-					+ "'. Try: sb [chance|window|narrow|ground|zombie|arrow|tire|door|flavor|blocks|add|drop|probe|info|reset]");
+					+ "'. Try: sb [on|off|chance|window|narrow|ground|zombie|shove|arrow|tire|tires|door|flavor {mod}|blocks|add|drop|probe|info|reset]");
 				return;
 			}
 		}
 
 		/// <summary>
-		/// The menu. <paramref name="_header"/> differs because <c>sb</c> has just changed something
-		/// and <c>sb info</c> has not.
+		/// The menu. <paramref name="_header"/> differs because <c>sb on</c> has just changed
+		/// something and <c>sb</c> has not.
 		/// </summary>
 		private static void OutputMenu(string _header)
 		{
 			Output(_header);
+			Line("sb on|off", EnabledChoices() + " - take a zombie's legs out from under it");
 			Line("sb chance {mult}", LegHitTrigger.Status());
 			Line("sb window {s}", ZombieLanding.Status());
 			Line("sb narrow {w} {h}", NarrowBlocks.Status());
 			Line("sb ground {n}", GroundLevel.Status());
-			Line("sb zombie", ZombieChoices());
+			Line("sb zombie {weights}", ZombieTrip.Status());
+			Line("sb shove {force}", ZombieTrip.ShoveStatus());
 			Line("sb arrow {mult}", LegHitTrigger.ArrowStatus());
 			Line("sb tire {s} {pct}", TripHazards.Status());
-			Line("sb door {pct}", DoorSlamInterop.DoorStatus());
-			Line("sb flavor", FlavorChoices() + " - " + DoorSlamInterop.FlavorSummary);
+			Line("sb tires {k} {x} {n}", TripHazards.KindsStatus());
+			Line("sb door {pct}", FlavorInterop.DoorStatus());
+			FlavorLines();
 			Line("sb blocks", NarrowBlocks.BlocksStatus());
 		}
 
-		private static void OutputStatus()
+		/// <summary>
+		/// 'sb flavor' alone is a read. 'sb flavor {mod}' toggles that pair and mirrors it to that
+		/// mod only; 'sb flavor on|off' sets and mirrors every pair.
+		/// </summary>
+		private static void SetFlavor(List<string> _params)
 		{
-			OutputMenu("Stumblr is now " + (Settings.Enabled ? "ON" : "OFF"));
+			if (_params.Count < 2)
+			{
+				FlavorLines();
+				return;
+			}
+
+			string arg = _params[1].ToLowerInvariant();
+			if (arg == "on" || arg == "off")
+			{
+				bool on = arg == "on";
+				FlavorSwitches.SetAll(on);
+				Config.Save();
+				FlavorPartners.PushAll(on);
+				Output("Flavor " + OnOff(on) + " for every partner: "
+					+ string.Join(", ", FlavorSwitches.Labels.ToArray()) + ".");
+				return;
+			}
+
+			string label = FlavorSwitches.Resolve(_params[1]);
+			if (label == null)
+			{
+				Output("'" + _params[1] + "' is not a partner this mod knows. Try: sb flavor ["
+					+ string.Join("|", Aliases()) + "|on|off]");
+				return;
+			}
+
+			bool now = !FlavorSwitches.IsOn(label);
+			FlavorSwitches.Set(label, now);
+			Config.Save();
+			FlavorPartners.Push(label, now);
+			Output(FlavorPartners.Describe(label));
+		}
+
+		/// <summary>One menu line per partner, known ones first.</summary>
+		private static void FlavorLines()
+		{
+			foreach (string label in FlavorSwitches.Labels)
+			{
+				bool on = FlavorSwitches.IsOn(label);
+				Line("sb flavor " + FlavorPartners.AliasOf(label),
+					Choices(Mark("on", on), Mark("off", !on)) + " - " + FlavorPartners.MenuNote(label));
+			}
+		}
+
+		private static string[] Aliases()
+		{
+			List<string> labels = FlavorSwitches.Labels;
+			string[] aliases = new string[labels.Count];
+			for (int i = 0; i < labels.Count; i++)
+			{
+				aliases[i] = FlavorPartners.AliasOf(labels[i]);
+			}
+			return aliases;
+		}
+
+		/// <summary>The header says whether anything moved: typing the state you were already in
+		/// should not read like a change.</summary>
+		private static void SetEnabled(bool _on)
+		{
+			bool changed = Settings.Enabled != _on;
+			Settings.Enabled = _on;
+			if (changed)
+			{
+				Config.Save();
+			}
+			OutputMenu("Stumblr is " + (changed ? "now " : "already ") + OnOff(_on));
+		}
+
+		private static string OnOff(bool _on)
+		{
+			return _on ? "ON" : "OFF";
 		}
 
 		/// <summary>The menu, with the read-only lines appended in the same column.</summary>
 		private static void OutputInfo()
 		{
-			OutputMenu("Stumblr is " + (Settings.Enabled ? "ON" : "OFF"));
+			OutputMenu("Stumblr is " + OnOff(Settings.Enabled));
 			Line("settings file", Config.Status);
 			Line("Undead Legacy", UndeadLegacyInfo.Status);
-			Line("DoorSlammer", DoorSlamInterop.Status);
+			for (int i = 0; i < FlavorPartners.All.Length; i++)
+			{
+				Line(FlavorPartners.All[i].Label, FlavorPartners.All[i].Status);
+			}
 			Line("landing hook", Patches.LandingHookStatus);
 			Line("leg hit hook", Patches.LegHitHookStatus);
 			Line("tire hooks", Patches.TireHookStatus);
@@ -152,7 +239,10 @@ namespace Stumblr
 			Line("tires", Counters.TiresPlaced + " placed, " + TripHazards.LiveCount() + " armed now, "
 				+ Counters.TireSteps + " stepped in, " + Counters.TireTrips + " tripped");
 			Line("doors", Counters.DoorProcs + " slams handed over, " + Counters.DoorTrips + " tripped");
-			Line("ragdolls", Counters.ZombieRagdolls + " of all trips");
+			Line("reactions", Counters.ZombieStumbles + " stumble, " + Counters.ZombieKneels + " kneel, "
+				+ Counters.ZombieProne + " prone, " + Counters.ZombieRagdolls + " ragdoll, "
+				+ Counters.ZombieShoves + " shove");
+			Line("last reaction", ZombieTrip.LastReaction);
 			Line("last roll", LegHitTrigger.LastRoll);
 			Line("last arrow", LegHitTrigger.LastArrow);
 			Line("last tire", TripHazards.LastTire);
@@ -168,12 +258,12 @@ namespace Stumblr
 
 		/// <summary>
 		/// One line of the block. Every label is padded to the width of the longest one -
-		/// "sb tire {s} {pct}" - so the settings and the read-only lines share a column and
+		/// "sb zombie {weights}" - so the settings and the read-only lines share a column and
 		/// <c>sb info</c> reads as one block rather than two.
 		/// </summary>
 		private static void Line(string _label, string _value)
 		{
-			Output("  " + _label.PadRight(18) + ": " + _value);
+			Output("  " + _label.PadRight(20) + ": " + _value);
 		}
 
 		private static EntityPlayerLocal GetLocalPlayer()
@@ -263,6 +353,60 @@ namespace Stumblr
 			Output("Ground band: " + GroundLevel.Status());
 		}
 
+		/// <summary>
+		/// Five weights in the table's order, or "off". Weights rather than percentages so one
+		/// reaction can be doubled without retyping the rest; the menu line shows the shares.
+		/// </summary>
+		private static void SetZombie(List<string> _params)
+		{
+			if (_params.Count == 2 && _params[1].ToLowerInvariant() == "off")
+			{
+				Config.SetWeights(0f, 0f, 0f, 0f, 0f);
+				Config.Save();
+				Output("Zombie reactions: " + ZombieTrip.Status());
+				return;
+			}
+
+			if (_params.Count != 6)
+			{
+				Output("Usage: sb zombie {stumble} {kneel} {prone} {ragdoll} {shove} - currently "
+					+ ZombieTrip.Weights() + ": " + ZombieTrip.Status() + ". Five weights, 0 to leave "
+					+ "one out; 'sb zombie off' zeroes them all. Stumble and ragdoll lurch forward; "
+					+ "kneel and prone fall to the side or back; shove is a physics push backward.");
+				return;
+			}
+
+			if (!Config.TryWeights(_params.GetRange(1, 5).ToArray(), out float[] weights))
+			{
+				Output("Weights are numbers from 0 to 1000, five of them.");
+				return;
+			}
+
+			Config.SetWeights(weights[0], weights[1], weights[2], weights[3], weights[4]);
+			Config.Save();
+			Output("Zombie reactions: " + ZombieTrip.Status());
+		}
+
+		private static void SetShove(List<string> _params)
+		{
+			if (_params.Count != 2)
+			{
+				Output("Usage: sb shove {force} - currently: " + ZombieTrip.ShoveStatus()
+					+ ". The impulse behind a shove, 60 by default; the game caps it at eight times "
+					+ "the zombie's mass. 0 plays a shove as a prone fall.");
+				return;
+			}
+
+			if (!TryNumber(_params[1], "force", 2000f, out float force))
+			{
+				return;
+			}
+
+			Settings.ShoveForce = force;
+			Config.Save();
+			Output("Shove: " + ZombieTrip.ShoveStatus());
+		}
+
 		private static void SetArrow(List<string> _params)
 		{
 			if (_params.Count != 2)
@@ -304,13 +448,38 @@ namespace Stumblr
 			Output("Tire: " + TripHazards.Status());
 		}
 
+		/// <summary>One kind of tire: its multiplier on the tire chance and its cap on trips.</summary>
+		private static void SetTires(List<string> _params)
+		{
+			TireKind? kind = _params.Count >= 2 ? TripHazards.Parse(_params[1]) : null;
+			if (_params.Count != 4 || kind == null)
+			{
+				Output("Usage: sb tires {small|single|pile|stack} {mult} {n} - currently: "
+					+ TripHazards.KindsStatus() + ". The multiplier on the tire chance for that kind, "
+					+ "and how many zombies one tire can trip before it is spent; 0 for either "
+					+ "switches the kind off.");
+				return;
+			}
+
+			if (!Config.TryTireRule(_params[2], _params[3], out TireRule rule))
+			{
+				Output("'" + _params[2] + " " + _params[3] + "' is not a multiplier from 0 to 100 "
+					+ "and a whole number from 0 to 1000.");
+				return;
+			}
+
+			Settings.SetTireRule(kind.Value, rule);
+			Config.Save();
+			Output("Tires: " + TripHazards.KindsStatus());
+		}
+
 		private static void SetDoor(List<string> _params)
 		{
 			if (_params.Count != 2)
 			{
-				Output("Usage: sb door {percent} - currently: " + DoorSlamInterop.DoorStatus()
+				Output("Usage: sb door {percent} - currently: " + FlavorInterop.DoorStatus()
 					+ ". The chance a zombie caught in a slammed door trips; needs DoorSlammer and "
-					+ "'sb flavor' on. 0 switches it off.");
+					+ "'sb flavor ds' on. 0 switches it off.");
 				return;
 			}
 
@@ -321,7 +490,7 @@ namespace Stumblr
 
 			Settings.DoorChance = chance;
 			Config.Save();
-			Output("Door: " + DoorSlamInterop.DoorStatus());
+			Output("Door: " + FlavorInterop.DoorStatus());
 		}
 
 		private static void AddPattern(List<string> _params)
@@ -445,17 +614,9 @@ namespace Stumblr
 			return _live ? ">" + _option + "<" : _option;
 		}
 
-		private static string ZombieChoices()
+		private static string EnabledChoices()
 		{
-			return Choices(
-				Mark("off", Settings.ZombieMode == ZombieReaction.Off),
-				Mark("stumble", Settings.ZombieMode == ZombieReaction.Stumble),
-				Mark("ragdoll", Settings.ZombieMode == ZombieReaction.Ragdoll));
-		}
-
-		private static string FlavorChoices()
-		{
-			return Choices(Mark("on", Settings.Flavor), Mark("off", !Settings.Flavor));
+			return Choices(Mark("on", Settings.Enabled), Mark("off", !Settings.Enabled));
 		}
 
 		private static void Output(string _line)
@@ -470,13 +631,13 @@ namespace Stumblr
 
 		public override string getDescription()
 		{
-			return "Toggles the Stumblr mod and reports its status.";
+			return "Shows and changes the Stumblr mod's settings.";
 		}
 
 		public override string getHelp()
 		{
-			return "Usage: sb [chance {mult}|window {s}|narrow {w} {h}|ground {n}|zombie|arrow {mult}"
-				+ "|tire {s} {pct}|door {pct}|flavor|blocks|add {pattern}|drop {pattern}|probe|info|reset]"
+			return "Usage: sb [on|off|chance {mult}|window {s}|narrow {w} {h}|ground {n}|zombie {weights}|shove {force}|arrow {mult}"
+				+ "|tire {s} {pct}|tires {k} {x} {n}|door {pct}|flavor {mod}|flavor on|off|blocks|add {pattern}|drop {pattern}|probe|info|reset]"
 				+ "\r\n\r\nFour ways to take a zombie's legs out from under it, each playing one of the "
 				+ "game's own stumble animations. A zombie that has just scrambled onto a fence, a "
 				+ "railing, a pole or any other narrow block has not found its balance yet: hit it in "
@@ -485,8 +646,9 @@ namespace Stumblr
 				+ "slammed in its face. The two leg-hit chances are the shot's or swing's own "
 				+ "dismember chance times a multiplier, so they grow with the weapon skill Undead "
 				+ "Legacy levels by use - Clubs, Blades, Archery and so on."
-				+ "\r\n\r\n'sb' on its own toggles the mod and prints the settings. Each line names "
-				+ "the command that changes it, so the settings block is the menu.\r\n\r\n"
+				+ "\r\n\r\n'sb' on its own prints the settings and changes nothing. Each line names "
+				+ "the command that changes it, so the settings block is the menu. 'sb on' and "
+				+ "'sb off' are the master switch.\r\n\r\n"
 				+ "'sb chance {mult}' sets the multiplier on the swing's dismember chance for the "
 				+ "perch trip, 2 by default. Under UL a weapon skill of 1 gives 0.25% dismember, 100 "
 				+ "gives 25%, so x2 runs from one trip in two hundred leg hits to one in two.\r\n\r\n"
@@ -501,10 +663,17 @@ namespace Stumblr
 				+ "\r\n\r\n'sb ground {n}' limits perch trips to within n blocks of ground level, 3 by "
 				+ "default, measured against the terrain height rather than whatever is built on "
 				+ "it. This keeps trips to yard fences and away from rooftop catwalks, where a "
-				+ "stumble is both more punishing and less plausible.\r\n\r\n'sb zombie' cycles what "
-				+ "a tripping zombie does, whatever tripped it: off, stumble (it staggers and "
-				+ "recovers) or ragdoll (it goes down properly). Both are the game's own reactions, "
-				+ "and neither deals damage nor triggers rage.\r\n\r\n'sb arrow {mult}' sets the "
+				+ "stumble is both more punishing and less plausible.\r\n\r\n'sb zombie {stumble} {kneel} "
+				+ "{prone} {ragdoll} {shove}' weights what a tripping zombie does, whatever tripped "
+				+ "it; each trip draws one reaction from the table. Stumble staggers it forward and "
+				+ "it recovers on its feet; ragdoll is the same lurch carried through to the floor. "
+				+ "Both are the game's break-through reaction and both fall toward you. Kneel drops "
+				+ "it to a knee and prone puts it flat, each to a random side or backward. Shove is "
+				+ "a physics push backward with a random lean, ending when the body settles. 0 "
+				+ "leaves a reaction out and 'sb zombie off' switches them all off. Every one is "
+				+ "the game's own animation; none deals damage or triggers rage.\r\n\r\n'sb shove "
+				+ "{force}' sets how hard a shove pushes, 60 by default; the game caps it by the "
+				+ "zombie's mass. 0 plays a shove as a prone fall.\r\n\r\n'sb arrow {mult}' sets the "
 				+ "multiplier on the shot's dismember chance for an arrow or bolt to the leg of a "
 				+ "running zombie, 2 by default. Running means the zombie is one the game currently "
 				+ "has running - feral, night, blood moon, or the ZombieMove setting - and it is "
@@ -514,13 +683,25 @@ namespace Stumblr
 				+ "chance a zombie stepping into it trips, 50% by default. One roll per zombie per "
 				+ "tire. Under Undead Legacy every tire in the world can be picked up, so it is a "
 				+ "matter of carrying one and dropping it in the right place - or at a zombie's feet. "
-				+ "0 seconds switches tires off.\r\n\r\n'sb door {pct}' sets the chance a zombie "
+				+ "0 seconds switches tires off.\r\n\r\n'sb tires {kind} {mult} {n}' tunes one kind "
+				+ "of tire: small (the donut spare), single (one full-size tire), pile (a heap) or "
+				+ "stack (a column). The multiplier scales the tire chance for that kind, and n is "
+				+ "how many zombies one tire can trip before it is spent. By default a small tire "
+				+ "trips at x0.75 and takes one zombie, a single at x1 and two, a pile at x1.5 and "
+				+ "three, and a stack is off. Note the small flat tire is the only one a zombie "
+				+ "walks through; the others are solid, so a zombie trips on them by stepping up "
+				+ "onto one in its path.\r\n\r\n'sb door {pct}' sets the chance a zombie "
 				+ "caught in a slammed door trips, 50% by default. Needs DoorSlammer installed and "
-				+ "'sb flavor' on. 0 switches it off.\r\n\r\n'sb flavor' toggles the extra behaviour "
-				+ "supported mods offer, on by default. It does nothing unless one of them is "
-				+ "installed. Currently that is DoorSlammer: a slam that catches a zombie hands it "
-				+ "over for the door roll above. All the mods that link up carry this switch and "
-				+ "toggling it in any one of them moves all of them.\r\n\r\n'sb blocks' prints the "
+				+ "'sb flavor ds' on. 0 switches it off.\r\n\r\n'sb flavor' lists the extra behaviour "
+				+ "supported mods offer, one switch per mod, all on by default, and changes nothing. "
+				+ "'sb flavor {mod}' toggles one of them by that mod's command name - 'sb flavor ds' "
+				+ "- and 'sb flavor on' or 'sb flavor off' sets them all. A switch does nothing "
+				+ "unless that mod is installed. Currently that is DoorSlammer: a slam that catches a "
+				+ "zombie hands it over for the door roll above. Each pair of mods is switched on "
+				+ "both sides and toggling it in either one sets both, so 'sb flavor ds' and 'ds "
+				+ "flavor sb' are the same switch; DoorSlammer's other pairs are not touched. A mod "
+				+ "this build does not know about is let through until you switch it off; it gets a "
+				+ "line of its own here once it has been seen.\r\n\r\n'sb blocks' prints the "
 				+ "name overrides: substrings of a block or shape name that count as narrow "
 				+ "regardless of their box, like a hedge, and ones that never count, like a fence "
 				+ "door. 'sb add' and 'sb drop' edit the first list.\r\n\r\nEvery setting here takes "

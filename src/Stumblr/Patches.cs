@@ -60,7 +60,7 @@ namespace Stumblr
 		private static void ApplyPatches()
 		{
 			UndeadLegacyInfo.Report();
-			DoorSlamInterop.Report();
+			FlavorPartners.Resolve();
 
 			Harmony harmony = new Harmony(HarmonyId);
 			ApplyLandingHook(harmony);

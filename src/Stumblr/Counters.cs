@@ -54,13 +54,21 @@ namespace Stumblr
 
 		internal static int TireTrips;
 
-		/// <summary>Slams DoorSlammer handed over with flavor on both sides.</summary>
+		/// <summary>Slams DoorSlammer handed over with the DoorSlammer/Stumblr flavor pair on both sides.</summary>
 		internal static int DoorProcs;
 
 		internal static int DoorTrips;
 
-		/// <summary>Trips of any kind that played the ragdoll rather than the stumble.</summary>
+		/// <summary>Which reaction each trip of any kind drew from the table.</summary>
+		internal static int ZombieStumbles;
+
+		internal static int ZombieKneels;
+
+		internal static int ZombieProne;
+
 		internal static int ZombieRagdolls;
+
+		internal static int ZombieShoves;
 
 		internal static void Reset()
 		{
@@ -81,7 +89,11 @@ namespace Stumblr
 			TireTrips = 0;
 			DoorProcs = 0;
 			DoorTrips = 0;
+			ZombieStumbles = 0;
+			ZombieKneels = 0;
+			ZombieProne = 0;
 			ZombieRagdolls = 0;
+			ZombieShoves = 0;
 		}
 	}
 }

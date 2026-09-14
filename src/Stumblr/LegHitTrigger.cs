@@ -165,7 +165,7 @@ namespace Stumblr
 
 			Counters.ArrowRunningHits++;
 
-			if (Settings.ZombieMode == ZombieReaction.Off || chance <= 0f
+			if (!ZombieTrip.Active || chance <= 0f
 				|| _zombie.rand.RandomFloat >= chance)
 			{
 				return false;
@@ -200,7 +200,7 @@ namespace Stumblr
 			// Checked here rather than up front so the counters above still move with trips
 			// switched off - which is what makes "the hook is live but nothing is tripping"
 			// diagnosable.
-			if (Settings.ZombieMode == ZombieReaction.Off || _chance <= 0f)
+			if (!ZombieTrip.Active || _chance <= 0f)
 			{
 				return;
 			}
